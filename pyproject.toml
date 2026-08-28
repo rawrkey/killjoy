@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "killjoy"
+version = "0.1.0"
+description = "Safe, paper-trading-first foundation for an autonomous options trading agent."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "alpaca-py>=0.44,<0.45",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.hatch.build.targets.wheel]
+packages = ["killjoy"]
