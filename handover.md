@@ -7,7 +7,7 @@ Complete a reliable, autonomous **paper-only** AI options-trading system by Sept
 August 29, 2026 — Phase 1. Current task completed: safe paper-account status command with typed account/position snapshots.
 
 ## Current Status
-The initial Phase 1 foundation checkpoint has been committed and pushed to `origin/main`. All current code is tested and secret-safe. No real Alpaca API requests or trading actions have been made.
+The initial Phase 1 foundation and its GitHub-ready README landing page have been committed and pushed to `origin/main`. All current code is tested and secret-safe. No real Alpaca API requests or trading actions have been made.
 
 ## Completed Tasks
 - Inspected the initially empty repository and Git state (unborn `main`, no commits).
@@ -22,6 +22,7 @@ The initial Phase 1 foundation checkpoint has been committed and pushed to `orig
 - Added logging configuration and mocked Alpaca adapter tests; no order-submission method exists.
 - Added provider-neutral account/position snapshots and a read-only status formatter.
 - Added `main.py`; without credentials it reports `NOT CONFIGURED` safely, and with valid paper credentials it reads only account and positions.
+- Redesigned `README.md` as a polished repository landing page with badges, architecture, honest capability status, setup, safety guidance, MCP boundary, and roadmap.
 
 ## Files Created/Modified
 - `.env.example`, `.gitignore`, `pyproject.toml`, `README.md`, `handover.md`
@@ -88,6 +89,7 @@ The initial Phase 1 foundation checkpoint has been committed and pushed to `orig
 - `.\\.venv\\Scripts\\python.exe main.py` passed without credentials, printing `Alpaca: NOT CONFIGURED` and `Paper Trading: TRUE`.
 - `.\\.venv\\Scripts\\python.exe -m compileall -q killjoy main.py` and `git diff --check` passed.
 - Pre-commit verification: `.\\.venv\\Scripts\\python.exe -m pytest` passed (**7 passed**); `git diff --check` passed; `git check-ignore .env .venv` confirmed both are ignored; a credential-assignment scan found no values outside `.env.example`.
+- README refresh verification: `.\\.venv\\Scripts\\python.exe -m pytest` passed (**7 passed**) and `git diff --check` passed.
 
 ## Known Issues
 - `origin/main` is absent/unborn because the cloned remote repository is empty; no commits have been made.
