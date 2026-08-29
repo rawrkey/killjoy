@@ -19,59 +19,59 @@
 KILLJOY is not a simple trading bot. It's an **adversarial AI system** where multiple AI agents debate every trade before it reaches the market.
 
 ```
-                 ┌─────────────────────────────────────────┐
-                 │            KILLJOY PIPELINE             │
-                 └─────────────────────────────────────────┘
+                        ┌───────────────────────────┐
+                        │       KILLJOY PIPELINE     │
+                        └───────────────────────────┘
 
                               MARKET DATA
                                   │
                     ┌─────────────┼─────────────┐
                     ▼             ▼             ▼
-               ┌─────────┐  ┌─────────┐  ┌─────────┐
-               │ANALYST  │  │VOLATLTY │  │PORTFOLIO│
-               │  AGENT  │  │ AGENT   │  │  AGENT  │
-               └────┬────┘  └────┬────┘  └────┬────┘
-                    │            │             │
-                    └────────────┼─────────────┘
-                                 ▼
-                          ┌─────────────┐
-                          │  STRATEGY   │
-                          │    AGENT    │
-                          └──────┬──────┘
-                                 ▼
-                          ┌─────────────┐
-                          │   TRADE     │
-                          │  PROPOSAL   │
-                          └──────┬──────┘
-                                 ▼
-                          ┌─────────────┐
-                          │  KILL AGENT │ ◄─── TRIES TO KILL IT
-                          └──────┬──────┘
-                                 ▼
-                       ┌─────────────────┐
-                       │   ADVERSARIAL   │
-                       │     DEBATE      │
-                       │  (Trader vs AI) │
-                       └────────┬────────┘
-                                ▼
-                       ┌─────────────────┐
-                       │   DETERMINISTIC │ ◄─── FINAL VETO
-                       │   RISK ENGINE   │
-                       └────────┬────────┘
-                                ▼
-                       ┌─────────────────┐
-                       │     ALPACA      │
-                       │  PAPER ACCOUNT  │
-                       └────────┬────────┘
-                                ▼
-                       ┌─────────────────┐
-                       │    POSITION     │
-                       │    MONITOR      │
-                       └────────┬────────┘
-                                ▼
-                       ┌─────────────────┐
-                       │   POSTMORTEM    │ ◄─── LEARNS FROM EVERY TRADE
-                       └─────────────────┘
+               ┌────────┐  ┌────────┐  ┌────────┐
+               │ANALYST │  │VOLATLTY│  │PORTFLIO│
+               │  AGENT │  │  AGENT │  │  AGENT │
+               └───┬────┘  └───┬────┘  └───┬────┘
+                   │           │            │
+                   └───────────┼────────────┘
+                               ▼
+                        ┌────────────┐
+                        │  STRATEGY  │
+                        │   AGENT    │
+                        └─────┬──────┘
+                              ▼
+                        ┌────────────┐
+                        │   TRADE    │
+                        │  PROPOSAL  │
+                        └─────┬──────┘
+                              ▼
+                        ┌────────────┐
+                        │ KILL AGENT │ ◄─── TRIES TO KILL IT
+                        └─────┬──────┘
+                              ▼
+                       ┌──────────────┐
+                       │  ADVERSARIAL │
+                       │    DEBATE    │
+                       │ (Trader vs)  │
+                       └──────┬───────┘
+                              ▼
+                       ┌──────────────┐
+                       │ DETERMINISTIC│ ◄─── FINAL VETO
+                       │  RISK ENGINE │
+                       └──────┬───────┘
+                              ▼
+                       ┌──────────────┐
+                       │    ALPACA    │
+                       │ PAPER ACCOUNT│
+                       └──────┬───────┘
+                              ▼
+                       ┌──────────────┐
+                       │   POSITION   │
+                       │   MONITOR    │
+                       └──────┬───────┘
+                              ▼
+                       ┌──────────────┐
+                       │  POSTMORTEM  │ ◄─── LEARNS FROM EVERY TRADE
+                       └──────────────┘
 ```
 
 ---
@@ -83,19 +83,19 @@ The Kill Agent is KILLJOY's defining feature. It's an AI agent whose **sole purp
 ### The Adversarial Debate
 
 ```
-TRADER: "NVDA momentum and volume support continued upside.
-         Bull call spread limits downside exposure."
+TRADER:   "NVDA momentum and volume support continued upside.
+           Bull call spread limits downside exposure."
 
-KILL AGENT: "Your thesis assumes continuation despite elevated IV
-             and weakening intraday breadth. Reward/risk after
-             spread cost is marginal."
+KILL:     "Your thesis assumes continuation despite elevated IV
+           and weakening intraday breadth. Reward/risk after
+           spread cost is marginal."
 
-TRADER: "IV is elevated, but the spread structure caps premium
-         exposure. The 2.1 R/R justifies the risk."
+TRADER:   "IV is elevated, but the spread structure caps premium
+           exposure. The 2.1 R/R justifies the risk."
 
-KILL AGENT: "However, expected reward after spread cost remains
-             insufficient for the volatility regime. The 30-day
-             DTE adds theta decay pressure."
+KILL:     "However, expected reward after spread cost remains
+           insufficient for the volatility regime. The 30-day
+           DTE adds theta decay pressure."
 
 FINAL SCORE: 0.42 (MARGINAL) — REJECTED
 REASON: Insufficient edge in current volatility regime
@@ -103,13 +103,13 @@ REASON: Insufficient edge in current volatility regime
 
 ### Kill Score Semantics
 
-| Score | Rating | Action |
-|-------|--------|--------|
-| `0.00 - 0.20` | **KILL** | Major red flags — trade is dead |
-| `0.20 - 0.40` | **WEAK** | Significant concerns — likely reject |
-| `0.40 - 0.60` | **MARGINAL** | Some concerns — proceed with caution |
-| `0.60 - 0.80` | **DECENT** | Minor concerns — acceptable |
-| `0.80 - 1.00` | **STRONG** | Few or no concerns — should proceed |
+| Score        | Rating      | Action                       |
+| ------------ | ----------- | ---------------------------- |
+| `0.00 - 0.20` | **KILL**      | Major red flags — trade is dead |
+| `0.20 - 0.40` | **WEAK**      | Significant concerns — likely reject |
+| `0.40 - 0.60` | **MARGINAL**  | Some concerns — proceed with caution |
+| `0.60 - 0.80` | **DECENT**    | Minor concerns — acceptable |
+| `0.80 - 1.00` | **STRONG**    | Few or no concerns — should proceed |
 
 **Survival Score = 1 - Kill Score** (exposed for analytics)
 
@@ -120,28 +120,28 @@ REASON: Insufficient edge in current volatility regime
 KILLJOY uses a **deterministic + LLM** hybrid architecture:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    LAYER 1: DETERMINISTIC                    │
-│  Feature extraction · Regime detection · Risk calculations  │
-└──────────────────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                   LAYER 1: DETERMINISTIC                        │
+│   Feature extraction · Regime detection · Risk calculations     │
+└──────────────────────────────┬──────────────────────────────────┘
                                │ features
                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    LAYER 2: LLM REASONING                    │
-│  Thesis generation · Strategy selection · Adversarial test  │
-└──────────────────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                   LAYER 2: LLM REASONING                        │
+│   Thesis generation · Strategy selection · Adversarial test     │
+└──────────────────────────────┬──────────────────────────────────┘
                                │ structured output
                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    LAYER 3: SCHEMA VALIDATION                │
-│  Pydantic models · Type checking · Field constraints        │
-└──────────────────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                   LAYER 3: SCHEMA VALIDATION                    │
+│   Pydantic models · Type checking · Field constraints           │
+└──────────────────────────────┬──────────────────────────────────┘
                                │ validated data
                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    LAYER 4: DETERMINISTIC SAFETY             │
-│  Risk gates · Portfolio checks · Paper trading guard        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                   LAYER 4: DETERMINISTIC SAFETY                 │
+│   Risk gates · Portfolio checks · Paper trading guard           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why This Architecture?
@@ -155,18 +155,18 @@ KILLJOY uses a **deterministic + LLM** hybrid architecture:
 
 Each AI agent has two files:
 
-| File | Role |
-|------|------|
-| `analyst.py` / `kill_agent.py` / `strategy_agent.py` | **Deterministic baseline** — pure rule-based logic, always runs |
-| `llm_analyst.py` / `llm_kill.py` / `llm_strategy.py` | **LLM wrapper** — calls the deterministic version first, then enhances with LLM reasoning |
+| File                                              | Role                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| `analyst.py` / `kill_agent.py` / `strategy_agent.py` | **Deterministic baseline** — pure rule-based logic, always runs      |
+| `llm_analyst.py` / `llm_kill.py` / `llm_strategy.py` | **LLM wrapper** — calls deterministic first, then adds LLM reasoning |
 
 The scheduler imports **only the LLM versions**. Each LLM function follows the same pattern:
 
 ```
-1. Call deterministic version → get quantitative baseline
-2. If LLM available → serialize features, get structured LLM response
-3. Merge → deterministic data primary, LLM adds qualitative reasoning
-4. If LLM fails → return deterministic result unchanged
+1. Call deterministic version  →  get quantitative baseline
+2. If LLM available           →  serialize features, get structured LLM response
+3. Merge                      →  deterministic data primary, LLM adds reasoning
+4. If LLM fails               →  return deterministic result unchanged
 ```
 
 **The original deterministic files are NOT dead code.** They are the safety fallback that ensures the system works even without an LLM provider. The LLM is an enhancement layer, not a requirement.
@@ -175,12 +175,12 @@ The scheduler imports **only the LLM versions**. Each LLM function follows the s
 
 Any **OpenAI-compatible** endpoint works:
 
-| Provider | Setup |
-|----------|-------|
-| OpenAI | Set `KILLJOY_LLM_API_KEY` to your API key |
-| OmniRouter | Set `KILLJOY_LLM_BASE_URL` to your router URL |
-| Ollama | Run `ollama serve` and set base URL to `http://localhost:11434/v1` |
-| vLLM | Set base URL to your vLLM server |
+| Provider    | Setup                                                              |
+| ----------- | ------------------------------------------------------------------ |
+| OpenAI      | Set `KILLJOY_LLM_API_KEY` to your API key                         |
+| OmniRouter  | Set `KILLJOY_LLM_BASE_URL` to your router URL                     |
+| Ollama      | Run `ollama serve` and set base URL to `http://localhost:11434/v1` |
+| vLLM        | Set base URL to your vLLM server                                   |
 
 ---
 
@@ -233,14 +233,14 @@ python main.py --autonomous     # Autonomous loop (30s scans)
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `--check` | Verify Alpaca paper connectivity |
-| `--status` | Show account status and positions |
-| `--analyze` | Run LLM-enhanced market analysis on universe |
-| `--paper-cycle` | Execute one complete decision cycle (dry run) |
-| `--autonomous` | Run autonomous trading loop |
-| `--interval N` | Set scan interval (default: 30s) |
+| Command         | Description                                  |
+| --------------- | -------------------------------------------- |
+| `--check`       | Verify Alpaca paper connectivity             |
+| `--status`      | Show account status and positions            |
+| `--analyze`     | Run LLM-enhanced market analysis on universe |
+| `--paper-cycle` | Execute one complete decision cycle (dry run)|
+| `--autonomous`  | Run autonomous trading loop                  |
+| `--interval N`  | Set scan interval (default: 30s)             |
 
 ---
 
@@ -249,20 +249,18 @@ python main.py --autonomous     # Autonomous loop (30s scans)
 **8 deterministic gates** — the AI **cannot** bypass them:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   RISK ENGINE GATES                      │
-├─────────────────────┬─────────┬─────────────────────────┤
-│ Gate                │ Limit   │ Description             │
-├─────────────────────┼─────────┼─────────────────────────┤
-│ Max Risk/Trade      │ $500    │ Max loss per trade      │
-│ Daily Loss Limit    │ $1,000  │ Max daily portfolio loss│
-│ Options Exposure    │ $10,000 │ Max total options exposure│
-│ Underlying Exposure │ $3,000  │ Max per-underlying      │
-│ Min Reward/Risk     │ 1.0     │ Min R/R ratio           │
-│ Min Buying Power    │ $500    │ Min required BP         │
-│ Max Positions       │ 10      │ Max concurrent positions│
-│ Min Confidence      │ 0.3     │ Min strategy confidence │
-└─────────────────────┴─────────┴─────────────────────────┘
+┌──────────────────────┬──────────┬───────────────────────────┐
+│       Gate           │  Limit   │       Description         │
+├──────────────────────┼──────────┼───────────────────────────┤
+│ Max Risk/Trade       │ $500     │ Max loss per trade        │
+│ Daily Loss Limit     │ $1,000   │ Max daily portfolio loss  │
+│ Options Exposure     │ $10,000  │ Max total options exposure│
+│ Underlying Exposure  │ $3,000   │ Max per-underlying        │
+│ Min Reward/Risk      │ 1.0      │ Min R/R ratio             │
+│ Min Buying Power     │ $500     │ Min required BP           │
+│ Max Positions        │ 10       │ Max concurrent positions  │
+│ Min Confidence       │ 0.3      │ Min strategy confidence   │
+└──────────────────────┴──────────┴───────────────────────────┘
 ```
 
 **The risk engine has FINAL VETO AUTHORITY.** Even if every AI agent approves a trade, the risk engine can kill it.
@@ -271,13 +269,13 @@ python main.py --autonomous     # Autonomous loop (30s scans)
 
 ## 5 Options Strategies
 
-| Strategy | Regime | Description |
-|----------|--------|-------------|
-| **Long Call** | Uptrend | Bullish directional play |
-| **Long Put** | Downtrend | Bearish directional play |
-| **Bull Call Spread** | Mild Uptrend | Defined-risk bullish |
-| **Bear Put Spread** | Mild Downtrend | Defined-risk bearish |
-| **Iron Condor** | Sideways | Range-bound income |
+| Strategy         | Regime         | Description              |
+| ---------------- | -------------- | ------------------------ |
+| **Long Call**    | Uptrend        | Bullish directional play |
+| **Long Put**     | Downtrend      | Bearish directional play |
+| **Bull Call Spread** | Mild Uptrend | Defined-risk bullish    |
+| **Bear Put Spread** | Mild Downtrend | Defined-risk bearish   |
+| **Iron Condor**  | Sideways       | Range-bound income       |
 
 Each strategy:
 - Filters by regime (won't propose bullish in downtrend)
@@ -292,18 +290,17 @@ Each strategy:
 
 Every rejected opportunity is recorded. This is a **first-class feature**.
 
-```python
-# Example rejection analytics
+```json
 {
-    "total_analyzed": 100,
-    "trades_executed": 7,
-    "trades_rejected": 93,
-    "top_rejection_reasons": {
-        "kill_agent": 45,
-        "portfolio": 28,
-        "risk_engine": 20
-    },
-    "avg_kill_score": 0.34
+  "total_analyzed": 100,
+  "trades_executed": 7,
+  "trades_rejected": 93,
+  "top_rejection_reasons": {
+    "kill_agent": 45,
+    "portfolio": 28,
+    "risk_engine": 20
+  },
+  "avg_kill_score": 0.34
 }
 ```
 
@@ -314,59 +311,64 @@ Every rejected opportunity is recorded. This is a **first-class feature**.
 ```
 killjoy/
 ├── agent/                  # AI Agents
-│   ├── analyst.py          # Deterministic market analysis
-│   ├── llm_analyst.py      # LLM-enhanced market analysis
-│   ├── strategy_agent.py   # Deterministic strategy generation
-│   ├── llm_strategy.py     # LLM-enhanced strategy selection
-│   ├── kill_agent.py       # Deterministic kill testing
-│   ├── llm_kill.py         # LLM adversarial kill + debate
-│   ├── portfolio_agent.py  # Portfolio fit evaluation
-│   ├── postmortem_agent.py # Deterministic postmortem
-│   ├── llm_postmortem.py   # LLM-enhanced postmortem
-│   └── models.py           # Pydantic data models
+│   ├── analyst.py            # Deterministic baseline
+│   ├── llm_analyst.py        # LLM-enhanced analysis
+│   ├── strategy_agent.py     # Deterministic baseline
+│   ├── llm_strategy.py       # LLM-enhanced selection
+│   ├── kill_agent.py         # Deterministic baseline
+│   ├── llm_kill.py           # LLM adversarial + debate
+│   ├── portfolio_agent.py    # Portfolio fit evaluation
+│   ├── postmortem_agent.py   # Deterministic baseline
+│   ├── llm_postmortem.py     # LLM-enhanced postmortem
+│   └── models.py             # Pydantic data models
 ├── llm/                    # LLM Provider Abstraction
-│   └── provider.py         # OpenAI-compatible provider
+│   └── provider.py           # OpenAI-compatible provider
 ├── alpaca/                 # Alpaca SDK Integration
-│   ├── client.py           # Paper-only read client
-│   ├── trading.py          # Order submission
-│   ├── market_data.py      # Stock quotes/bars
-│   ├── options_data.py     # Options chain/snapshots
-│   └── status.py           # Connection status
+│   ├── client.py             # Paper-only read client
+│   ├── trading.py            # Order submission
+│   ├── market_data.py        # Stock quotes/bars
+│   ├── options_data.py       # Options chain/snapshots
+│   └── status.py             # Connection status
 ├── autonomy/               # Autonomous Scheduler
-│   └── scheduler.py        # Main trading loop
+│   └── scheduler.py          # Main trading loop
 ├── strategies/             # Options Strategies
-│   ├── base.py             # Strategy base class
-│   ├── long_call.py        # Long Call
-│   ├── long_put.py         # Long Put
-│   ├── bull_call_spread.py # Bull Call Spread
-│   ├── bear_put_spread.py  # Bear Put Spread
-│   └── iron_condor.py      # Iron Condor
+│   ├── base.py               # Strategy base class
+│   ├── long_call.py          # Long Call
+│   ├── long_put.py           # Long Put
+│   ├── bull_call_spread.py   # Bull Call Spread
+│   ├── bear_put_spread.py    # Bear Put Spread
+│   └── iron_condor.py        # Iron Condor
 ├── risk/                   # Deterministic Risk Engine
-│   ├── engine.py           # 8 risk gates
-│   ├── exposure.py         # Exposure calculations
-│   └── position_size.py    # Position sizing
+│   ├── engine.py             # 8 risk gates
+│   ├── exposure.py           # Exposure calculations
+│   └── position_size.py      # Position sizing
 ├── options/                # Options Analytics
-│   ├── chain.py            # Chain parsing
-│   ├── contracts.py        # Contract selection
-│   ├── greeks.py           # Black-Scholes Greeks
-│   ├── liquidity.py        # Liquidity checks
-│   └── pricing.py          # Pricing helpers
+│   ├── chain.py              # Chain parsing
+│   ├── contracts.py          # Contract selection
+│   ├── greeks.py             # Black-Scholes Greeks
+│   ├── liquidity.py          # Liquidity checks
+│   └── pricing.py            # Pricing helpers
+├── analytics/              # Performance & Audit
+│   ├── performance.py        # P&L, win rate, Sharpe
+│   ├── events.py             # JSONL audit log
+│   ├── correlation.py        # Cross-asset correlation
+│   └── params.py             # Parameter management
 ├── portfolio/              # Portfolio Management
-│   └── manager.py          # Portfolio state/evaluation
+│   └── manager.py            # Portfolio state/evaluation
 ├── execution/              # Order Execution
-│   └── executor.py         # Alpaca order submission
+│   └── executor.py           # Alpaca order submission
 ├── monitoring/             # Position Monitoring
-│   └── position_monitor.py # HOLD/EXIT decisions
+│   └── position_monitor.py   # HOLD/EXIT decisions
 ├── database/               # Persistence
-│   ├── repository.py       # Trade journal (JSON)
-│   └── rejected.py         # "Why Not Trade?" log
+│   ├── repository.py         # Trade journal (JSON)
+│   └── rejected.py           # "Why Not Trade?" log
 ├── config/                 # Configuration
-│   ├── settings.py         # Environment settings
-│   └── logging.py          # Logging setup
-app/                        # Next.js Frontend (dashboard)
-backend/                    # FastAPI Backend (API)
+│   ├── settings.py           # Environment settings
+│   └── logging.py            # Logging setup
+app/                        # Next.js Frontend
+backend/                    # FastAPI Backend
 .mcp/                       # MCP Server Config
-tests/                      # Test Suite
+tests/                      # Test Suite (97 tests)
 main.py                     # CLI Entry Point
 ```
 
@@ -380,57 +382,57 @@ pytest tests/ -v
 
 **97 tests** covering:
 
-| Module | Tests |
-|--------|-------|
-| Config | Settings, validation, credentials |
-| Alpaca Client | Connection, paper mode |
-| Models | All Pydantic models |
-| Options | Chain, Greeks, liquidity, pricing |
-| Strategies | All 5 strategies |
-| Kill Agent | Deterministic + LLM kill testing |
-| Risk Engine | All 8 gates |
-| Portfolio | Concentration, exposure |
-| Position Sizing | Sizing logic |
-| Monitoring | HOLD/EXIT decisions |
-| Journal | Record, persist, retrieve |
-| Postmortem | Win/loss analysis |
-| **LLM Layer** | Provider, analysts, kill agent, debate |
-| **Analytics** | Performance, events, correlation, params |
+| Module         | Tests                                      |
+| -------------- | ------------------------------------------ |
+| Config         | Settings, validation, credentials          |
+| Alpaca Client  | Connection, paper mode                     |
+| Models         | All Pydantic models                        |
+| Options        | Chain, Greeks, liquidity, pricing          |
+| Strategies     | All 5 strategies                           |
+| Kill Agent     | Deterministic + LLM kill testing           |
+| Risk Engine    | All 8 gates                                |
+| Portfolio      | Concentration, exposure                    |
+| Position Sizing| Sizing logic                               |
+| Monitoring     | HOLD/EXIT decisions                        |
+| Journal        | Record, persist, retrieve                  |
+| Postmortem     | Win/loss analysis                          |
+| **LLM Layer**  | Provider, analysts, kill agent, debate      |
+| **Analytics**  | Performance, events, correlation, params   |
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ALPACA_API_KEY` | Yes | — | Alpaca API key ID |
-| `ALPACA_SECRET_KEY` | Yes | — | Alpaca secret key |
-| `ALPACA_PAPER` | Yes | `true` | Must be `true` (live rejected) |
-| `ALPACA_PAPER_TRADE` | No | `true` | MCP paper mode |
-| `ALPACA_TOOLSETS` | No | `all` | Comma-separated toolsets |
-| `KILLJOY_LLM_API_KEY` | No | — | LLM API key (OpenAI-compatible) |
-| `KILLJOY_LLM_BASE_URL` | No | `https://api.openai.com/v1` | LLM endpoint URL |
-| `KILLJOY_LLM_MODEL` | No | `gpt-4o-mini` | LLM model name |
-| `KILLJOY_LLM_TEMPERATURE` | No | `0.3` | LLM temperature |
-| `KILLJOY_LLM_MAX_TOKENS` | No | `2048` | Max tokens per request |
+| Variable               | Required | Default                      | Description                    |
+| ---------------------- | -------- | ---------------------------- | ------------------------------ |
+| `ALPACA_API_KEY`       | Yes      | —                            | Alpaca API key ID              |
+| `ALPACA_SECRET_KEY`    | Yes      | —                            | Alpaca secret key              |
+| `ALPACA_PAPER`         | Yes      | `true`                       | Must be `true` (live rejected) |
+| `ALPACA_PAPER_TRADE`   | No       | `true`                       | MCP paper mode                 |
+| `ALPACA_TOOLSETS`      | No       | `all`                        | Comma-separated toolsets       |
+| `KILLJOY_LLM_API_KEY`  | No       | —                            | LLM API key (OpenAI-compatible)|
+| `KILLJOY_LLM_BASE_URL` | No       | `https://api.openai.com/v1`  | LLM endpoint URL               |
+| `KILLJOY_LLM_MODEL`    | No       | `gpt-4o-mini`                | LLM model name                 |
+| `KILLJOY_LLM_TEMPERATURE`| No     | `0.3`                        | LLM temperature                |
+| `KILLJOY_LLM_MAX_TOKENS`| No      | `2048`                       | Max tokens per request         |
 
 ---
 
 ## Safety Model
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    SAFETY LAYERS                         │
-├─────────────────────────────────────────────────────────┤
-│ 1. Paper trading only (ALPACA_PAPER=true enforced)     │
-│ 2. LLM never directly controls order execution         │
-│ 3. Deterministic risk engine has final veto authority   │
-│ 4. Kill Agent tries to kill every trade                │
-│ 5. All orders originate from validated TradeProposal   │
-│ 6. Schema validation on all LLM outputs                │
-│ 7. No live credentials in configuration                │
-│ 8. Credentials never logged or persisted               │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        SAFETY LAYERS                            │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Paper trading only        (ALPACA_PAPER=true enforced)      │
+│ 2. LLM never controls orders (deterministic executor)          │
+│ 3. Risk engine has veto      (8 gates, final authority)        │
+│ 4. Kill Agent attacks trades (adversarial AI debate)           │
+│ 5. Validated TradeProposal   (Pydantic schema required)        │
+│ 6. Schema-validated LLM      (structured output only)          │
+│ 7. No live credentials       (paper-only enforced)             │
+│ 8. Credentials never logged  (SecretStr handling)              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
