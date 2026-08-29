@@ -343,8 +343,8 @@ killjoy/
 ├── config/                 # Configuration
 │   ├── settings.py         # Environment settings
 │   └── logging.py          # Logging setup
-api/                        # FastAPI Backend
-web/                        # Next.js Frontend
+app/                        # Next.js Frontend (dashboard)
+backend/                    # FastAPI Backend (API)
 .mcp/                       # MCP Server Config
 tests/                      # Test Suite
 main.py                     # CLI Entry Point
