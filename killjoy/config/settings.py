@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     alpaca_paper_trade: bool = True
     alpaca_toolsets: str = "account,trading,assets,stock-data,options-data,news"
 
+    # LLM provider configuration (OpenAI-compatible endpoints)
+    killjoy_llm_api_key: SecretStr | None = None
+    killjoy_llm_base_url: str = "https://api.openai.com/v1"
+    killjoy_llm_model: str = "gpt-4o-mini"
+    killjoy_llm_temperature: float = 0.3
+    killjoy_llm_max_tokens: int = 2048
+
     @field_validator("alpaca_paper")
     @classmethod
     def require_paper_trading(cls, value: bool) -> bool:

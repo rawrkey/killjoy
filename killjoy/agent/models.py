@@ -134,13 +134,38 @@ class TradeProposal(BaseModel):
 # Kill Agent
 # ---------------------------------------------------------------------------
 
+class KillObjection(BaseModel):
+    """A structured objection raised by the Kill Agent."""
+    category: str = Field(description="thesis_weakness, timing_risk, iv_risk, event_risk, liquidity_risk, poor_reward_risk, portfolio_correlation, concentration, market_regime_mismatch, unfavorable_structure, asymmetric_downside, missing_confirmation")
+    severity: Decimal = Field(ge=0, le=1, description="0=minor concern, 1=critical failure")
+    reasoning: str = Field(description="Detailed explanation of this objection")
+    counterfactual: str = Field(default="", description="What would need to be true for this objection to not apply")
+
+
 class KillDecision(BaseModel):
+    """Structured output from the Kill Agent.
+
+    Kill Score Semantics (consistent everywhere):
+      0.00 - 0.20: KILL — Major red flags, trade should not proceed
+      0.20 - 0.40: WEAK — Significant concerns, likely reject
+      0.40 - 0.60: MARGINAL — Some concerns, proceed with caution
+      0.60 - 0.80: DECENT — Minor concerns, acceptable
+      0.80 - 1.00: STRONG — Few or no concerns, should proceed
+
+    Survival Score = 1 - Kill Score (exposed for dashboard/analytics)
+    """
     proposal_id: str
-    kill_score: Decimal = Field(ge=0, le=1, description="0=clear kill, 1=safe")
-    kill_reasons: list[str] = Field(default_factory=list)
+    kill_score: Decimal = Field(ge=0, le=1, description="0=trade is dangerous, 1=trade is safe")
     survives: bool = False
     confidence: Decimal = Field(ge=0, le=1, default=Decimal("0.5"))
+    objections: list[KillObjection] = Field(default_factory=list)
+    critical_failures: list[str] = Field(default_factory=list)
+    counterfactual: str = Field(default="", description="What would need to change for this trade to survive")
+    recommendation: str = Field(default="", description="kill, marginal, or approve")
     analysis: str = ""
+    debate_transcript: list[dict[str, str]] = Field(default_factory=list, description="Adversarial debate transcript")
+    # Legacy field for backward compatibility
+    kill_reasons: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +234,29 @@ class Postmortem(BaseModel):
     kill_agent_accurate: bool | None = None
     improvements: list[str] = Field(default_factory=list)
     lessons: list[str] = Field(default_factory=list)
+    llm_analysis: str = Field(default="", description="LLM-generated postmortem analysis")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Rejected Trade ("Why Not Trade?")
+# ---------------------------------------------------------------------------
+
+class RejectedTrade(BaseModel):
+    """Persisted record of a rejected trade opportunity."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    underlying: str = ""
+    thesis: str = ""
+    proposed_strategy: str = ""
+    kill_score: Decimal = Decimal("0")
+    survives: bool = False
+    objections: list[KillObjection] = Field(default_factory=list)
+    critical_failures: list[str] = Field(default_factory=list)
+    risk_failures: list[str] = Field(default_factory=list)
+    portfolio_failures: list[str] = Field(default_factory=list)
+    rejection_reason: str = ""
+    debate_transcript: list[dict[str, str]] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

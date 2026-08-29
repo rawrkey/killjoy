@@ -128,6 +128,21 @@ def cmd_analyze() -> int:
         return 1
 
 
+def _init_llm(settings) -> "LLMProvider":
+    """Initialize the LLM provider from settings."""
+    from killjoy.llm.provider import LLMProvider
+    api_key = ""
+    if settings.killjoy_llm_api_key:
+        api_key = settings.killjoy_llm_api_key.get_secret_value()
+    return LLMProvider(
+        api_key=api_key,
+        base_url=settings.killjoy_llm_base_url,
+        model=settings.killjoy_llm_model,
+        temperature=settings.killjoy_llm_temperature,
+        max_tokens=settings.killjoy_llm_max_tokens,
+    )
+
+
 def cmd_paper_cycle() -> int:
     """Run one complete paper decision cycle."""
     settings = get_settings()
@@ -151,6 +166,7 @@ def cmd_paper_cycle() -> int:
         market_data = MarketDataClient(settings)
         options_data = OptionsDataClient(settings)
         portfolio = PortfolioManager()
+        llm = _init_llm(settings)
 
         from killjoy.agent.models import AccountSnapshot, PositionSnapshot
         acc_snap = AccountSnapshot(
@@ -180,10 +196,13 @@ def cmd_paper_cycle() -> int:
             executor=None,  # Dry run first
             portfolio=portfolio,
             journal=journal,
+            llm=llm,
             dry_run=True,
         )
 
-        print("KILLJOY — Paper Decision Cycle (DRY RUN)")
+        llm_status = "LLM: ACTIVE" if llm.is_available else "LLM: UNAVAILABLE (deterministic fallback)"
+        print(f"KILLJOY — Paper Decision Cycle (DRY RUN)")
+        print(f"{llm_status}")
         print("=" * 60)
         results = scheduler.run_once()
         print(f"\nScan Results:")
@@ -224,6 +243,7 @@ def cmd_autonomous(scan_interval: int = 30) -> int:
         portfolio = PortfolioManager()
         executor = Executor(trading_client._trading_client)
         journal = TradeJournal()
+        llm = _init_llm(settings)
 
         from killjoy.agent.models import AccountSnapshot, PositionSnapshot
         acc_snap = AccountSnapshot(
@@ -251,11 +271,14 @@ def cmd_autonomous(scan_interval: int = 30) -> int:
             executor=executor,
             portfolio=portfolio,
             journal=journal,
+            llm=llm,
             scan_interval=scan_interval,
             dry_run=False,
         )
 
+        llm_status = "LLM: ACTIVE" if llm.is_available else "LLM: UNAVAILABLE (deterministic fallback)"
         print("KILLJOY — Autonomous Trading Loop")
+        print(f"{llm_status}")
         print("Press Ctrl+C to stop")
         print("=" * 60)
         scheduler.run_loop()

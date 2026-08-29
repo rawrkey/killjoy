@@ -1,28 +1,45 @@
-"""Autonomous scheduler — runs the full KILLJOY pipeline on a loop."""
+"""Autonomous scheduler — runs the full KILLJOY pipeline with LLM agents.
+
+Pipeline:
+  1. Monitor existing positions
+  2. Scan each underlying:
+     a. LLM Market Analyst (deterministic features + LLM reasoning)
+     b. LLM Strategy Agent (deterministic candidates + LLM selection)
+     c. LLM Kill Agent (adversarial testing + debate)
+     d. Portfolio Check
+     e. Deterministic Risk Engine
+     f. Execution (paper only)
+  3. Record rejections ("Why Not Trade?")
+  4. Log structured observability data
+"""
 
 from __future__ import annotations
 
 import logging
 import time
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from killjoy.agent.analyst import analyze_market
-from killjoy.agent.kill_agent import kill_test
+from killjoy.agent.llm_analyst import analyze_market_llm
+from killjoy.agent.llm_kill import kill_test_llm
+from killjoy.agent.llm_strategy import generate_proposals_llm
 from killjoy.agent.models import (
     AccountSnapshot,
     PositionSnapshot,
+    RejectedTrade,
     StrategyType,
     TradeProposal,
     TradeJournalEntry,
 )
 from killjoy.agent.portfolio_agent import check_portfolio_fit
-from killjoy.agent.strategy_agent import generate_proposals
 from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
 from killjoy.alpaca.options_data import OptionsDataClient
+from killjoy.database.rejected import RejectedTradeLog
 from killjoy.database.repository import TradeJournal
 from killjoy.execution.executor import Executor
+from killjoy.llm.provider import LLMProvider
 from killjoy.options.contracts import filter_by_dte
 from killjoy.portfolio.manager import PortfolioManager
 from killjoy.risk.engine import evaluate_risk
@@ -31,7 +48,10 @@ logger = logging.getLogger(__name__)
 
 
 class KilljoyScheduler:
-    """Autonomous trading scheduler — the main KILLJOY loop."""
+    """Autonomous trading scheduler — the main KILLJOY loop.
+
+    Integrates LLM-backed agents with deterministic safety controls.
+    """
 
     def __init__(
         self,
@@ -40,6 +60,7 @@ class KilljoyScheduler:
         executor: Executor | None,
         portfolio: PortfolioManager,
         journal: TradeJournal,
+        llm: LLMProvider | None = None,
         universe: list[str] | None = None,
         scan_interval: int = 30,
         dry_run: bool = False,
@@ -49,22 +70,32 @@ class KilljoyScheduler:
         self._executor = executor
         self._portfolio = portfolio
         self._journal = journal
+        self._llm = llm
         self._universe = universe or DEFAULT_UNIVERSE
         self._scan_interval = scan_interval
         self._dry_run = dry_run
         self._running = False
+        self._rejected_log = RejectedTradeLog()
+        self._run_counter = 0
 
     def run_once(self) -> dict[str, Any]:
         """Execute one complete scan cycle. Returns summary."""
-        logger.info("=== KILLJOY Scan Cycle: %s ===", datetime.utcnow().isoformat())
+        self._run_counter += 1
+        run_id = f"{datetime.utcnow().strftime('%Y-%m-%d')}-{self._run_counter:05d}"
+
+        logger.info("=== KILLJOY Scan Cycle: RUN %s ===", run_id)
         results: dict[str, Any] = {
+            "run_id": run_id,
             "timestamp": datetime.utcnow().isoformat(),
             "universe": self._universe,
+            "llm_available": self._llm.is_available if self._llm else False,
             "proposals_generated": 0,
             "proposals_killed": 0,
+            "proposals_portfolio_rejected": 0,
             "proposals_risk_rejected": 0,
             "orders_submitted": 0,
             "positions_monitored": 0,
+            "rejections_recorded": 0,
         }
 
         # 1. Monitor existing positions
@@ -79,19 +110,28 @@ class KilljoyScheduler:
                 logger.warning("Error scanning %s: %s", symbol, e)
 
         logger.info(
-            "Scan complete: %d proposals, %d killed, %d risk-rejected, %d submitted",
+            "RUN %s complete: %d proposals, %d killed, %d portfolio-rejected, %d risk-rejected, %d submitted, %d rejections recorded",
+            run_id,
             results["proposals_generated"],
             results["proposals_killed"],
+            results["proposals_portfolio_rejected"],
             results["proposals_risk_rejected"],
             results["orders_submitted"],
+            results["rejections_recorded"],
         )
         return results
 
     def _scan_symbol(self, symbol: str, results: dict) -> None:
         """Scan a single symbol for opportunities."""
-        # 1. Analyze market
-        thesis = analyze_market(self._market_data, symbol)
-        logger.info("Analysis for %s: %s (conf: %s)", symbol, thesis.regime.value, thesis.confidence)
+        # 1. LLM-enhanced market analysis
+        thesis = analyze_market_llm(self._market_data, symbol, self._llm)
+        logger.info(
+            "ANALYST %s: %s (conf: %s) [%s]",
+            symbol,
+            thesis.regime.value,
+            thesis.confidence,
+            "LLM" if (self._llm and self._llm.is_available) else "DETERMINISTIC",
+        )
 
         # 2. Get options chain
         from datetime import date, timedelta
@@ -112,15 +152,15 @@ class KilljoyScheduler:
             logger.info("No contracts in DTE range for %s", symbol)
             return
 
-        # 3. Generate proposals
+        # 3. LLM-enhanced proposal generation
         spot = thesis.current_price
         if spot <= 0:
             return
 
-        proposals = generate_proposals(thesis, contracts, spot)
+        proposals = generate_proposals_llm(thesis, contracts, spot, self._llm)
         results["proposals_generated"] += len(proposals)
 
-        # 4. For each proposal, run kill test → portfolio → risk → execute
+        # 4. For each proposal, run kill test -> portfolio -> risk -> execute
         for proposal in proposals[:2]:  # Limit to top 2 per symbol
             self._process_proposal(proposal, thesis, results)
 
@@ -134,27 +174,59 @@ class KilljoyScheduler:
             proposal.confidence,
         )
 
-        # Kill test
-        kill_decision = kill_test(proposal, thesis, self._portfolio.get_portfolio_context())
+        # Kill test (LLM adversarial)
+        kill_decision = kill_test_llm(
+            proposal,
+            thesis,
+            self._portfolio.get_portfolio_context(),
+            self._llm,
+        )
+        logger.info(
+            "KILL %s %s: score=%.2f survives=%s confidence=%s [%d objections, %d critical]",
+            proposal.underlying,
+            proposal.strategy.value,
+            kill_decision.kill_score,
+            kill_decision.survives,
+            kill_decision.confidence,
+            len(kill_decision.objections),
+            len(kill_decision.critical_failures),
+        )
+
         if not kill_decision.survives:
-            logger.info("KILLED: %s — %s", proposal.underlying, kill_decision.kill_reasons)
+            self._record_rejection(
+                proposal, thesis, kill_decision,
+                rejection_reason="kill_agent",
+                results=results,
+            )
             results["proposals_killed"] += 1
             return
 
         # Portfolio check
         portfolio_check = self._portfolio.evaluate_trade(proposal)
         if not portfolio_check.approved:
+            self._record_rejection(
+                proposal, thesis, kill_decision,
+                rejection_reason="portfolio",
+                portfolio_failures=portfolio_check.reasons,
+                results=results,
+            )
             logger.info("PORTFOLIO REJECT: %s — %s", proposal.underlying, portfolio_check.reasons)
-            results["proposals_risk_rejected"] += 1
+            results["proposals_portfolio_rejected"] += 1
             return
 
-        # Risk engine
+        # Risk engine (deterministic — final veto authority)
         risk_decision = evaluate_risk(
             proposal,
             buying_power=self._portfolio.buying_power,
             current_positions=self._portfolio.position_count,
         )
         if not risk_decision.approved:
+            self._record_rejection(
+                proposal, thesis, kill_decision,
+                rejection_reason="risk_engine",
+                risk_failures=risk_decision.reasons,
+                results=results,
+            )
             logger.info("RISK REJECT: %s — %s", proposal.underlying, risk_decision.reasons)
             results["proposals_risk_rejected"] += 1
             return
@@ -189,13 +261,45 @@ class KilljoyScheduler:
             else:
                 logger.warning("ORDER FAILED: %s — %s", proposal.underlying, order_result.error)
 
+    def _record_rejection(
+        self,
+        proposal: TradeProposal,
+        thesis,
+        kill_decision,
+        rejection_reason: str,
+        portfolio_failures: list[str] | None = None,
+        risk_failures: list[str] | None = None,
+        results: dict | None = None,
+    ) -> None:
+        """Record a rejected trade opportunity for analytics."""
+        try:
+            rejected = RejectedTrade(
+                underlying=proposal.underlying,
+                thesis=proposal.thesis,
+                proposed_strategy=proposal.strategy.value,
+                kill_score=kill_decision.kill_score,
+                survives=kill_decision.survives,
+                objections=kill_decision.objections,
+                critical_failures=kill_decision.critical_failures,
+                risk_failures=risk_failures or [],
+                portfolio_failures=portfolio_failures or [],
+                rejection_reason=rejection_reason,
+                debate_transcript=kill_decision.debate_transcript,
+            )
+            self._rejected_log.record_rejection(rejected)
+            if results is not None:
+                results["rejections_recorded"] = results.get("rejections_recorded", 0) + 1
+        except Exception as e:
+            logger.warning("Failed to record rejection: %s", e)
+
     def run_loop(self) -> None:
         """Run the autonomous loop indefinitely."""
         self._running = True
         logger.info(
-            "KILLJOY autonomous loop starting (interval: %ds, dry_run: %s)",
+            "KILLJOY autonomous loop starting (interval: %ds, dry_run: %s, llm: %s)",
             self._scan_interval,
             self._dry_run,
+            self._llm.is_available if self._llm else False,
         )
 
         while self._running:
