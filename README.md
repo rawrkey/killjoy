@@ -203,7 +203,7 @@ python main.py --autonomous     # Autonomous trading loop
 
 ## Dashboard
 
-The web dashboard provides real-time visibility into the trading system:
+The web dashboard provides real-time visibility into the trading system.
 
 - **Dashboard** — Account overview, performance metrics, recent activity
 - **Positions** — Open positions with live P&L
@@ -211,15 +211,18 @@ The web dashboard provides real-time visibility into the trading system:
 - **Trades** — Alpaca orders, trade journal, rejection analytics
 - **Settings** — Connection config, live risk parameters, strategy list
 
-Start the dashboard:
+Start the backend and frontend (both from project root):
 
 ```bash
-# Terminal 1: Backend
+# Terminal 1: Backend API
 cd backend && uvicorn main:app --reload
 
-# Terminal 2: Frontend
+# Terminal 2: Frontend (from project root)
+npm install
 npm run dev
 ```
+
+The dashboard runs at `http://localhost:3000`.
 
 ---
 
