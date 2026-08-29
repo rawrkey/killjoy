@@ -1,0 +1,12 @@
+backend/
+killjoy/
+tests/
+api/
+data/
+.mcp/
+*.py
+*.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+pyproject.toml
