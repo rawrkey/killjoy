@@ -244,7 +244,7 @@ def journal():
     """Get trade journal entries."""
     from killjoy.database.repository import TradeJournal
     tj = TradeJournal()
-    entries = tj.load_all()
+    entries = tj.get_all_entries()
     result = []
     for e in entries[-50:]:  # Last 50
         result.append({
@@ -254,6 +254,89 @@ def journal():
             "confidence": round(float(e.confidence), 2) if e.confidence else 0,
             "kill_score": round(float(e.kill_score), 2) if e.kill_score else 0,
             "result": e.result,
+            "realized_pnl": round(float(e.realized_pnl), 2) if e.realized_pnl else 0,
+            "thesis": e.thesis,
             "timestamp": str(e.timestamp) if e.timestamp else "",
         })
     return {"entries": result, "count": len(result)}
+
+
+@app.get("/api/performance")
+def performance():
+    """Get performance analytics from trade journal."""
+    from killjoy.database.repository import TradeJournal
+    from killjoy.analytics.performance import PerformanceAnalytics
+    tj = TradeJournal()
+    entries = tj.get_all_entries()
+    analytics = PerformanceAnalytics(entries)
+    return analytics.summary()
+
+
+@app.get("/api/rejections")
+def rejections():
+    """Get rejected trade opportunities ('Why Not Trade?')."""
+    from killjoy.database.rejected import RejectedTradeLog
+    log = RejectedTradeLog()
+    analytics = log.get_analytics()
+    return analytics
+
+
+@app.get("/api/events")
+def events(run_id: str = "", event_type: str = "", date: str = ""):
+    """Get event/audit log entries."""
+    from killjoy.analytics.events import EventLog
+    el = EventLog()
+    event_list = el.get_events(
+        run_id=run_id or None,
+        event_type=event_type or None,
+        date=date or None,
+    )
+    return {"events": event_list[-100:], "count": len(event_list)}
+
+
+@app.get("/api/events/summary")
+def events_summary(date: str = ""):
+    """Get event summary."""
+    from killjoy.analytics.events import EventLog
+    el = EventLog()
+    return el.get_summary(date=date or None)
+
+
+@app.get("/api/correlation")
+def correlation():
+    """Get portfolio correlation matrix."""
+    from killjoy.analytics.correlation import PortfolioCorrelation
+    from killjoy.alpaca.market_data import MarketDataClient
+    settings = get_settings()
+    market_data = MarketDataClient(settings)
+    corr = PortfolioCorrelation()
+
+    # Fetch price history for universe
+    from killjoy.alpaca.market_data import DEFAULT_UNIVERSE
+    for symbol in DEFAULT_UNIVERSE:
+        bars = market_data.get_bars(symbol, limit=30)
+        prices = [float(b["close"]) for b in bars if b.get("close")]
+        if prices:
+            corr.update_prices(symbol, prices)
+
+    # Get current positions for correlation risk assessment
+    try:
+        client = _get_trading_client()
+        positions = client.get_positions()
+        pos_symbols = [getattr(p, "symbol", "")[:4] for p in positions]
+        pos_symbols = list(set(s for s in pos_symbols if s))
+    except Exception:
+        pos_symbols = []
+
+    risk = corr.get_portfolio_correlation_risk(pos_symbols) if pos_symbols else {"risk_level": "no_positions"}
+    matrix = corr.get_correlation_matrix([s for s in DEFAULT_UNIVERSE if s in corr._price_history])
+
+    return {"matrix": matrix, "risk": risk}
+
+
+@app.get("/api/params")
+def params():
+    """Get current trading parameters."""
+    from killjoy.analytics.params import ParameterManager
+    pm = ParameterManager()
+    return {"params": pm.get_all(), "history_count": len(pm.get_history())}

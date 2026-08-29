@@ -36,6 +36,7 @@ from killjoy.agent.models import (
 from killjoy.agent.portfolio_agent import check_portfolio_fit
 from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
 from killjoy.alpaca.options_data import OptionsDataClient
+from killjoy.analytics.events import EventLog
 from killjoy.database.rejected import RejectedTradeLog
 from killjoy.database.repository import TradeJournal
 from killjoy.execution.executor import Executor
@@ -76,6 +77,7 @@ class KilljoyScheduler:
         self._dry_run = dry_run
         self._running = False
         self._rejected_log = RejectedTradeLog()
+        self._event_log = EventLog()
         self._run_counter = 0
 
     def run_once(self) -> dict[str, Any]:
@@ -84,6 +86,7 @@ class KilljoyScheduler:
         run_id = f"{datetime.utcnow().strftime('%Y-%m-%d')}-{self._run_counter:05d}"
 
         logger.info("=== KILLJOY Scan Cycle: RUN %s ===", run_id)
+        self._event_log.log("analysis_started", run_id)
         results: dict[str, Any] = {
             "run_id": run_id,
             "timestamp": datetime.utcnow().isoformat(),
@@ -119,11 +122,14 @@ class KilljoyScheduler:
             results["orders_submitted"],
             results["rejections_recorded"],
         )
+        self._event_log.log("analysis_completed", run_id, data=results)
         return results
 
     def _scan_symbol(self, symbol: str, results: dict) -> None:
         """Scan a single symbol for opportunities."""
+        run_id = results.get("run_id", "")
         # 1. LLM-enhanced market analysis
+        self._event_log.log("analysis_started", run_id, symbol=symbol)
         thesis = analyze_market_llm(self._market_data, symbol, self._llm)
         logger.info(
             "ANALYST %s: %s (conf: %s) [%s]",
@@ -166,6 +172,7 @@ class KilljoyScheduler:
 
     def _process_proposal(self, proposal: TradeProposal, thesis, results: dict) -> None:
         """Run the full pipeline for a single proposal."""
+        run_id = results.get("run_id", "")
         logger.info(
             "Processing %s %s (R/R: %s, conf: %s)",
             proposal.underlying,
@@ -173,8 +180,14 @@ class KilljoyScheduler:
             proposal.reward_risk,
             proposal.confidence,
         )
+        self._event_log.log("proposal_created", run_id, symbol=proposal.underlying, data={
+            "strategy": proposal.strategy.value,
+            "reward_risk": float(proposal.reward_risk),
+            "confidence": float(proposal.confidence),
+        })
 
         # Kill test (LLM adversarial)
+        self._event_log.log("kill_started", run_id, symbol=proposal.underlying)
         kill_decision = kill_test_llm(
             proposal,
             thesis,
@@ -191,6 +204,13 @@ class KilljoyScheduler:
             len(kill_decision.objections),
             len(kill_decision.critical_failures),
         )
+        self._event_log.log("kill_completed", run_id, symbol=proposal.underlying, data={
+            "kill_score": float(kill_decision.kill_score),
+            "survives": kill_decision.survives,
+            "objections_count": len(kill_decision.objections),
+            "critical_count": len(kill_decision.critical_failures),
+            "debate_rounds": len(kill_decision.debate_transcript),
+        })
 
         if not kill_decision.survives:
             self._record_rejection(
@@ -203,6 +223,10 @@ class KilljoyScheduler:
 
         # Portfolio check
         portfolio_check = self._portfolio.evaluate_trade(proposal)
+        self._event_log.log("portfolio_checked", run_id, symbol=proposal.underlying, data={
+            "approved": portfolio_check.approved,
+            "reasons": portfolio_check.reasons,
+        })
         if not portfolio_check.approved:
             self._record_rejection(
                 proposal, thesis, kill_decision,
@@ -220,6 +244,10 @@ class KilljoyScheduler:
             buying_power=self._portfolio.buying_power,
             current_positions=self._portfolio.position_count,
         )
+        self._event_log.log("risk_checked", run_id, symbol=proposal.underlying, data={
+            "approved": risk_decision.approved,
+            "failed_checks": len(risk_decision.failed_checks),
+        })
         if not risk_decision.approved:
             self._record_rejection(
                 proposal, thesis, kill_decision,
@@ -257,8 +285,15 @@ class KilljoyScheduler:
             self._journal.record_entry(entry)
             if order_result.status != "failed":
                 results["orders_submitted"] += 1
+                self._event_log.log("order_submitted", run_id, symbol=proposal.underlying, data={
+                    "order_id": order_result.order_id,
+                    "status": order_result.status,
+                })
                 logger.info("ORDER SUBMITTED: %s — %s", proposal.underlying, order_result.order_id)
             else:
+                self._event_log.log("order_failed", run_id, symbol=proposal.underlying, data={
+                    "error": order_result.error,
+                })
                 logger.warning("ORDER FAILED: %s — %s", proposal.underlying, order_result.error)
 
     def _record_rejection(
