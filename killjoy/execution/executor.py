@@ -76,10 +76,6 @@ class Executor:
         legs = []
         for leg in proposal.legs:
             side = OrderSide.BUY if leg.side == "buy" else OrderSide.SELL
-            intent_map = {
-                "buy": "buy_to_open" if "open" not in leg.side else "buy_to_open",
-                "sell": "sell_to_open",
-            }
             from alpaca.trading.enums import PositionIntent
             position_intent = PositionIntent.BUY_TO_OPEN if leg.side == "buy" else PositionIntent.SELL_TO_OPEN
 
@@ -90,15 +86,25 @@ class Executor:
                 position_intent=position_intent,
             ))
 
-        # Use market order for simplicity; limit orders require price estimation
-        return MarketOrderRequest(
-            qty=1,
-            side=OrderSide.BUY,
-            type=OrderType.MARKET,
-            time_in_force=TimeInForce.DAY,
-            order_class=OrderClass.MLEG,
-            legs=legs,
-        )
+        # Single-leg = SIMPLE, multi-leg = MLEG
+        if len(legs) == 1:
+            return MarketOrderRequest(
+                symbol=legs[0].symbol,
+                qty=1,
+                side=legs[0].side,
+                type=OrderType.MARKET,
+                time_in_force=TimeInForce.DAY,
+                order_class=OrderClass.SIMPLE,
+            )
+        else:
+            return MarketOrderRequest(
+                qty=1,
+                side=OrderSide.BUY,
+                type=OrderType.MARKET,
+                time_in_force=TimeInForce.DAY,
+                order_class=OrderClass.MLEG,
+                legs=legs,
+            )
 
     def close_position(self, symbol: str) -> OrderResult:
         """Close a position by symbol."""

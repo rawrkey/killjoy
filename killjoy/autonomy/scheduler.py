@@ -41,7 +41,7 @@ class KilljoyScheduler:
         portfolio: PortfolioManager,
         journal: TradeJournal,
         universe: list[str] | None = None,
-        scan_interval: int = 300,
+        scan_interval: int = 30,
         dry_run: bool = False,
     ) -> None:
         self._market_data = market_data

@@ -198,7 +198,7 @@ def cmd_paper_cycle() -> int:
         return 1
 
 
-def cmd_autonomous() -> int:
+def cmd_autonomous(scan_interval: int = 30) -> int:
     """Run the autonomous trading loop."""
     settings = get_settings()
     if not settings.has_alpaca_credentials:
@@ -251,6 +251,7 @@ def cmd_autonomous() -> int:
             executor=executor,
             portfolio=portfolio,
             journal=journal,
+            scan_interval=scan_interval,
             dry_run=False,
         )
 
@@ -279,6 +280,7 @@ def main() -> int:
     parser.add_argument("--analyze", action="store_true", help="Analyze market for universe")
     parser.add_argument("--paper-cycle", action="store_true", help="Run one paper decision cycle (dry run)")
     parser.add_argument("--autonomous", action="store_true", help="Run autonomous trading loop")
+    parser.add_argument("--interval", type=int, default=30, help="Scan interval in seconds (default: 30)")
 
     args = parser.parse_args()
 
@@ -293,7 +295,7 @@ def main() -> int:
     elif args.paper_cycle:
         return cmd_paper_cycle()
     elif args.autonomous:
-        return cmd_autonomous()
+        return cmd_autonomous(scan_interval=args.interval)
     else:
         # Default: show status
         return cmd_check()
