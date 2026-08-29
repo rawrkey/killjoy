@@ -112,7 +112,7 @@ export default function SettingsPage() {
               </table>
             </div>
           )}
-          {params && params.history.length > 0 && (
+          {params && params.history && params.history.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
                 Recent Changes
@@ -121,7 +121,7 @@ export default function SettingsPage() {
                 <table>
                   <thead><tr><th>Parameter</th><th>From</th><th>To</th><th>Confidence</th><th>Applied</th></tr></thead>
                   <tbody>
-                    {params.history.slice(-5).reverse().map((h, i) => (
+                    {params.history && params.history.slice(-5).reverse().map((h, i) => (
                       <tr key={i}>
                         <td className="mono">{h.parameter}</td>
                         <td className="mono">{h.old_value}</td>
