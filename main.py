@@ -107,19 +107,22 @@ def cmd_analyze() -> int:
 
     try:
         from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
-        from killjoy.agent.analyst import analyze_market
+        from killjoy.agent.llm_analyst import analyze_market_llm
 
         market_data = MarketDataClient(settings)
+        llm = _init_llm(settings)
+        llm_status = "LLM: ACTIVE" if llm.is_available else "LLM: UNAVAILABLE (deterministic fallback)"
         print("KILLJOY — Market Analysis")
+        print(f"{llm_status}")
         print("=" * 60)
 
         for symbol in DEFAULT_UNIVERSE[:5]:  # Top 5
-            thesis = analyze_market(market_data, symbol)
+            thesis = analyze_market_llm(market_data, symbol, llm)
             print(f"\n{symbol}: {thesis.regime.value} (conf: {thesis.confidence:.2f})")
             print(f"  Price: ${thesis.current_price}")
             print(f"  Thesis: {thesis.thesis}")
             if thesis.observations:
-                for obs in thesis.observations[:2]:
+                for obs in thesis.observations[:3]:
                     print(f"  • {obs}")
 
         return 0
