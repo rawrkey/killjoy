@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, CheckResponse } from '@/lib/api';
+import { api, CheckResponse, ParamsResponse } from '@/lib/api';
 
 export default function SettingsPage() {
   const router = useRouter();
   const [health, setHealth] = useState<CheckResponse | null>(null);
+  const [params, setParams] = useState<ParamsResponse | null>(null);
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
@@ -19,6 +20,7 @@ export default function SettingsPage() {
     setApiKey(key);
     setSecretKey(localStorage.getItem('killjoy_secret_key') || '');
     api.check().then(setHealth).catch(() => {});
+    api.params().then(setParams).catch(() => {});
   }, [router]);
 
   const handleSave = () => {
@@ -34,6 +36,17 @@ export default function SettingsPage() {
     localStorage.removeItem('killjoy_api_key');
     localStorage.removeItem('killjoy_secret_key');
     router.push('/setup');
+  };
+
+  const paramLabels: Record<string, { label: string; desc: string; format: (v: number) => string }> = {
+    min_dte: { label: 'Min DTE', desc: 'Minimum days to expiration', format: v => `${v} days` },
+    max_dte: { label: 'Max DTE', desc: 'Maximum days to expiration', format: v => `${v} days` },
+    min_reward_risk: { label: 'Min Reward/Risk', desc: 'Minimum reward-to-risk ratio', format: v => v.toFixed(1) },
+    min_confidence: { label: 'Min Confidence', desc: 'Minimum strategy confidence', format: v => v.toFixed(2) },
+    max_loss_per_trade: { label: 'Max Loss/Trade', desc: 'Maximum loss per single trade', format: v => `$${v.toFixed(0)}` },
+    max_daily_loss: { label: 'Daily Loss Limit', desc: 'Maximum total daily loss', format: v => `$${v.toFixed(0)}` },
+    max_positions: { label: 'Max Positions', desc: 'Maximum concurrent positions', format: v => `${v}` },
+    max_options_exposure: { label: 'Options Exposure', desc: 'Maximum total options exposure', format: v => `$${v.toFixed(0)}` },
   };
 
   return (
@@ -67,28 +80,65 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Risk Engine */}
+      {/* Live Risk Engine Parameters */}
       <div className="card mb-24">
         <div className="card-header">
           <span className="card-title">Risk Engine Parameters</span>
-          <span className="badge badge-green">8 Gates</span>
+          <span className="badge badge-green">Live</span>
         </div>
         <div className="card-body">
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Gate</th><th>Limit</th><th>Description</th></tr></thead>
-              <tbody>
-                <tr><td>Max Risk/Trade</td><td className="mono">$500</td><td>Maximum loss per single trade</td></tr>
-                <tr><td>Daily Loss Limit</td><td className="mono">$1,000</td><td>Maximum total daily loss</td></tr>
-                <tr><td>Options Exposure</td><td className="mono">$10,000</td><td>Maximum total options exposure</td></tr>
-                <tr><td>Underlying Exposure</td><td className="mono">$3,000</td><td>Maximum per-underlying exposure</td></tr>
-                <tr><td>Min Reward/Risk</td><td className="mono">1.0</td><td>Minimum reward-to-risk ratio</td></tr>
-                <tr><td>Min Buying Power</td><td className="mono">$500</td><td>Minimum required buying power</td></tr>
-                <tr><td>Max Positions</td><td className="mono">10</td><td>Maximum concurrent positions</td></tr>
-                <tr><td>Min Confidence</td><td className="mono">0.3</td><td>Minimum strategy confidence</td></tr>
-              </tbody>
-            </table>
-          </div>
+          {!params ? (
+            <div className="loading-state"><span className="spinner" /> Loading params...</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Parameter</th><th>Value</th><th>Description</th></tr></thead>
+                <tbody>
+                  {Object.entries(params.params).map(([key, val]) => {
+                    const meta = paramLabels[key];
+                    return (
+                      <tr key={key}>
+                        <td><strong>{meta?.label ?? key}</strong></td>
+                        <td className="mono" style={{ color: 'var(--accent)' }}>
+                          {meta?.format(val) ?? String(val)}
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {meta?.desc ?? '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {params && params.history.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                Recent Changes
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Parameter</th><th>From</th><th>To</th><th>Confidence</th><th>Applied</th></tr></thead>
+                  <tbody>
+                    {params.history.slice(-5).reverse().map((h, i) => (
+                      <tr key={i}>
+                        <td className="mono">{h.parameter}</td>
+                        <td className="mono">{h.old_value}</td>
+                        <td className="mono" style={{ color: 'var(--accent)' }}>{h.recommended_value}</td>
+                        <td className="mono">{(h.confidence * 100).toFixed(0)}%</td>
+                        <td>
+                          <span className={`badge ${h.applied ? 'badge-green' : 'badge-muted'}`}>
+                            {h.applied ? 'Applied' : 'Pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -101,13 +151,13 @@ export default function SettingsPage() {
         <div className="card-body">
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Strategy</th><th>Type</th><th>Status</th></tr></thead>
+              <thead><tr><th>Strategy</th><th>Type</th><th>Regime</th><th>Status</th></tr></thead>
               <tbody>
-                <tr><td>Long Call</td><td>Directional</td><td><span className="badge badge-green">Active</span></td></tr>
-                <tr><td>Long Put</td><td>Directional</td><td><span className="badge badge-green">Active</span></td></tr>
-                <tr><td>Bull Call Spread</td><td>Spread</td><td><span className="badge badge-green">Active</span></td></tr>
-                <tr><td>Bear Put Spread</td><td>Spread</td><td><span className="badge badge-green">Active</span></td></tr>
-                <tr><td>Iron Condor</td><td>Neutral</td><td><span className="badge badge-green">Active</span></td></tr>
+                <tr><td>Long Call</td><td>Directional</td><td>Strong Uptrend</td><td><span className="badge badge-green">Active</span></td></tr>
+                <tr><td>Long Put</td><td>Directional</td><td>Strong Downtrend</td><td><span className="badge badge-green">Active</span></td></tr>
+                <tr><td>Bull Call Spread</td><td>Spread</td><td>Mild Uptrend</td><td><span className="badge badge-green">Active</span></td></tr>
+                <tr><td>Bear Put Spread</td><td>Spread</td><td>Mild Downtrend</td><td><span className="badge badge-green">Active</span></td></tr>
+                <tr><td>Iron Condor</td><td>Neutral</td><td>Sideways</td><td><span className="badge badge-green">Active</span></td></tr>
               </tbody>
             </table>
           </div>

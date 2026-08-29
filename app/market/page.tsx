@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, AnalyzeResponse, PaperCycleResponse } from '@/lib/api';
+import { api, AnalyzeResponse, PaperCycleResponse, CorrelationResponse } from '@/lib/api';
 
 export default function MarketPage() {
   const router = useRouter();
   const [data, setData] = useState<AnalyzeResponse | null>(null);
   const [cycleResult, setCycleResult] = useState<PaperCycleResponse | null>(null);
+  const [correlation, setCorrelation] = useState<CorrelationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,6 +16,7 @@ export default function MarketPage() {
     const key = localStorage.getItem('killjoy_api_key');
     if (!key) { router.push('/setup'); return; }
     api.analyze().then(setData).catch(e => setError(e.message));
+    api.correlation().then(setCorrelation).catch(() => {});
   }, [router]);
 
   const runCycle = async () => {
@@ -51,7 +53,7 @@ export default function MarketPage() {
 
       <div className="card mb-24">
         <div className="card-header">
-          <span className="card-title">Market Regime</span>
+          <span className="card-title">LLM Market Analysis</span>
           <span className="badge badge-purple">Top 5</span>
         </div>
         <div className="card-body">
@@ -67,6 +69,7 @@ export default function MarketPage() {
                     <th>Confidence</th>
                     <th>Price</th>
                     <th>Thesis</th>
+                    <th>Observations</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -75,8 +78,8 @@ export default function MarketPage() {
                       <td><strong>{a.symbol}</strong></td>
                       <td>
                         <span className={`badge ${
-                          a.regime === 'bullish' ? 'badge-green' :
-                          a.regime === 'bearish' ? 'badge-red' :
+                          a.regime?.includes('up') || a.regime?.includes('bull') ? 'badge-green' :
+                          a.regime?.includes('down') || a.regime?.includes('bear') ? 'badge-red' :
                           'badge-yellow'
                         }`}>
                           {a.regime || '—'}
@@ -84,8 +87,11 @@ export default function MarketPage() {
                       </td>
                       <td className="mono">{a.confidence != null ? `${(a.confidence * 100).toFixed(0)}%` : '—'}</td>
                       <td className="mono">{a.price ? `$${Number(a.price).toFixed(2)}` : '—'}</td>
-                      <td style={{ maxWidth: 300, fontSize: 12, color: 'var(--text-muted)' }}>
+                      <td style={{ maxWidth: 280, fontSize: 12, color: 'var(--text-secondary)' }}>
                         {a.thesis || a.error || '—'}
+                      </td>
+                      <td style={{ maxWidth: 200, fontSize: 11, color: 'var(--text-muted)' }}>
+                        {a.observations?.slice(0, 2).join('; ') || '—'}
                       </td>
                     </tr>
                   ))}
@@ -95,6 +101,64 @@ export default function MarketPage() {
           )}
         </div>
       </div>
+
+      {/* Correlation Matrix */}
+      {correlation && correlation.matrix.symbols.length > 0 && (
+        <div className="card mb-24">
+          <div className="card-header">
+            <span className="card-title">Portfolio Correlation</span>
+            <span className={`badge ${correlation.risk.risk_level === 'low' ? 'badge-green' : correlation.risk.risk_level === 'high' ? 'badge-red' : 'badge-yellow'}`}>
+              {correlation.risk.risk_level} risk
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    {correlation.matrix.symbols.map(s => (
+                      <th key={s} className="mono">{s}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {correlation.matrix.symbols.map((row, ri) => (
+                    <tr key={ri}>
+                      <td><strong className="mono">{row}</strong></td>
+                      {correlation.matrix.matrix[ri].map((val, ci) => (
+                        <td key={ci} className="mono" style={{
+                          fontSize: 12,
+                          color: ri === ci ? 'var(--text-muted)' :
+                            val > 0.7 ? 'var(--red)' :
+                            val > 0.4 ? 'var(--yellow)' :
+                            'var(--green)',
+                          background: ri === ci ? 'transparent' :
+                            val > 0.7 ? 'var(--red-bg)' :
+                            val > 0.4 ? 'var(--yellow-bg)' :
+                            'var(--green-bg)',
+                        }}>
+                          {val.toFixed(2)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {correlation.risk.correlated_pairs && correlation.risk.correlated_pairs.length > 0 && (
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
+                <strong>High correlations:</strong>
+                {correlation.risk.correlated_pairs.map(([a, b, c], i) => (
+                  <span key={i} style={{ marginLeft: 8 }}>
+                    <span className="badge badge-red">{a}/{b}</span> {c.toFixed(2)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {cycleResult && (
         <div className="card">

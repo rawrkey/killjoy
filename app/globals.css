@@ -366,3 +366,17 @@ tr:hover td { background: var(--bg-hover); }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
 }
+
+/* ── Correlation Matrix ─────────────────────────────────── */
+table td.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Selection ──────────────────────────────────────────── */
+::selection { background: rgba(59, 130, 246, 0.3); color: var(--text-primary); }
