@@ -1,8 +1,12 @@
-"""Kill Agent — adversarially tests every trade proposal.
+"""Kill Agent — DETERMINISTIC BASELINE for adversarial trade testing.
 
-The Kill Agent's objective is to DISPROVE the trade. It actively looks for
-reasons NOT to take the trade. A high kill_score (near 1.0) means the trade
-is safe; a low score (near 0.0) means the trade should be killed.
+This module provides the rule-based fallback for kill testing. It is called
+internally by ``llm_kill.py`` for pre-screening before LLM adversarial analysis
+and structured debate. The scheduler imports the LLM version, not this module
+directly.
+
+Fallback behavior: If no LLM provider is configured or available, the system
+uses this module's 9 deterministic checks as the final kill decision.
 
 Kill Score Semantics:
   0.0 - 0.2: KILL — Major red flags, trade should not proceed

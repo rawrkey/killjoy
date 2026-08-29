@@ -1,4 +1,13 @@
-"""Postmortem Agent — analyzes completed trades."""
+"""Postmortem Agent — DETERMINISTIC BASELINE for trade analysis.
+
+This module provides the rule-based fallback for postmortem analysis. It is
+called internally by ``llm_postmortem.py`` to compute baseline metrics before
+LLM reasoning is applied. Postmortem runs outside the scheduler loop.
+
+Fallback behavior: If no LLM provider is configured or available, the system
+uses this module's output with basic win/loss classification and simple
+improvement suggestions.
+"""
 
 from __future__ import annotations
 

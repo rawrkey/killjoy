@@ -1,4 +1,13 @@
-"""Strategy Agent — converts market thesis into trade proposals."""
+"""Strategy Agent — DETERMINISTIC BASELINE for trade proposal generation.
+
+This module provides the rule-based fallback for strategy selection. It is called
+internally by ``llm_strategy.py`` to generate candidate proposals before LLM
+reasoning selects the best one. The scheduler imports the LLM version, not this
+module directly.
+
+Fallback behavior: If no LLM provider is configured or available, the system
+returns all ranked proposals from this module unchanged.
+"""
 
 from __future__ import annotations
 

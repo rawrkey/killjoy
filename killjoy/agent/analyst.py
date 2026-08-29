@@ -1,4 +1,13 @@
-"""Market Analyst agent — analyzes market conditions and generates thesis."""
+"""Market Analyst agent — DETERMINISTIC BASELINE for market analysis.
+
+This module provides the rule-based fallback for market analysis. It is called
+internally by ``llm_analyst.py`` to extract quantitative features before LLM
+reasoning is applied. The scheduler imports the LLM version, not this module
+directly.
+
+Fallback behavior: If no LLM provider is configured or available, the system
+uses this module's output as the final market thesis.
+"""
 
 from __future__ import annotations
 

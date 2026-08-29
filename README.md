@@ -8,7 +8,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Alpaca SDK](https://img.shields.io/badge/alpaca--py-0.44-000000?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJMMyA3djEwbDkgNSA5LTVIN0wxMiAweiIgZmlsbD0iI0ZGQiIvPjwvc3ZnPg==&logoColor=white)](https://github.com/alpacahq/alpaca-py)
-[![Tests](https://img.shields.io/badge/tests-79%20passing-00C853?style=for-the-badge&logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-97%20passing-00C853?style=for-the-badge&logo=pytest&logoColor=white)](#testing)
 [![LLM](https://img.shields.io/badge/LLM-GPT--4o%20mini-FF6B00?style=for-the-badge&logo=openai&logoColor=white)](#llm-architecture)
 [![Paper Only](https://img.shields.io/badge/mode-PAPER%20ONLY-FFD600?style=for-the-badge&logo=shield&logoColor=black)](#safety)
 
@@ -150,6 +150,26 @@ KILLJOY uses a **deterministic + LLM** hybrid architecture:
 2. **The LLM CAN reason** — it explains *why*, not just *what*
 3. **Fallback is graceful** — if LLM fails, deterministic rules continue
 4. **Everything is structured** — Pydantic schemas ensure valid outputs
+
+### How the Agent Wrapper Pattern Works
+
+Each AI agent has two files:
+
+| File | Role |
+|------|------|
+| `analyst.py` / `kill_agent.py` / `strategy_agent.py` | **Deterministic baseline** — pure rule-based logic, always runs |
+| `llm_analyst.py` / `llm_kill.py` / `llm_strategy.py` | **LLM wrapper** — calls the deterministic version first, then enhances with LLM reasoning |
+
+The scheduler imports **only the LLM versions**. Each LLM function follows the same pattern:
+
+```
+1. Call deterministic version → get quantitative baseline
+2. If LLM available → serialize features, get structured LLM response
+3. Merge → deterministic data primary, LLM adds qualitative reasoning
+4. If LLM fails → return deterministic result unchanged
+```
+
+**The original deterministic files are NOT dead code.** They are the safety fallback that ensures the system works even without an LLM provider. The LLM is an enhancement layer, not a requirement.
 
 ### Supported LLM Providers
 
@@ -358,7 +378,7 @@ main.py                     # CLI Entry Point
 pytest tests/ -v
 ```
 
-**79 tests** covering:
+**97 tests** covering:
 
 | Module | Tests |
 |--------|-------|
@@ -375,6 +395,7 @@ pytest tests/ -v
 | Journal | Record, persist, retrieve |
 | Postmortem | Win/loss analysis |
 | **LLM Layer** | Provider, analysts, kill agent, debate |
+| **Analytics** | Performance, events, correlation, params |
 
 ---
 
