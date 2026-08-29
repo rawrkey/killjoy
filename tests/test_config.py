@@ -21,7 +21,10 @@ def test_settings_accept_paper_credentials() -> None:
 
 
 def test_missing_credentials_raise_actionable_error() -> None:
-    settings = Settings()
+    settings = Settings(
+        alpaca_api_key=None,
+        alpaca_secret_key=None,
+    )
 
     assert settings.has_alpaca_credentials is False
     with pytest.raises(MissingAlpacaCredentialsError, match="ALPACA_API_KEY"):

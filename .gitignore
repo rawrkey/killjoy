@@ -16,3 +16,8 @@ venv/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# Runtime data
+data/
+.agents/
+skills-lock.json

@@ -21,12 +21,14 @@ def check_liquidity(
 ) -> tuple[bool, str]:
     """Check if a contract meets minimum liquidity requirements.
 
+    When volume/OI are 0 (data unavailable), skip that check and rely on spread.
     Returns (is_liquid, reason).
     """
-    if contract.volume < min_volume:
+    # Only check volume/OI if data is actually available (> 0)
+    if contract.volume > 0 and contract.volume < min_volume:
         return False, f"Volume {contract.volume} < minimum {min_volume}"
 
-    if contract.open_interest < min_open_interest:
+    if contract.open_interest > 0 and contract.open_interest < min_open_interest:
         return False, f"Open interest {contract.open_interest} < minimum {min_open_interest}"
 
     mid = contract.mid if contract.mid > 0 else (contract.bid + contract.ask) / 2
@@ -35,6 +37,10 @@ def check_liquidity(
         spread_pct = spread / mid
         if spread_pct > max_spread_pct:
             return False, f"Bid-ask spread {spread_pct:.1%} exceeds {max_spread_pct:.1%}"
+
+    # Must have some pricing data
+    if contract.bid == 0 and contract.ask == 0:
+        return False, "No pricing data available"
 
     return True, "Liquidity OK"
 
