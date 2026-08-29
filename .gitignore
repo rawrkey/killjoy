@@ -6,6 +6,9 @@ __pycache__/
 .venv/
 venv/
 
+# Node
+node_modules/
+
 # Environment and secrets
 .env
 .env.*
@@ -21,7 +24,6 @@ htmlcov/
 # Runtime data
 data/
 
-# Web
-web/node_modules/
-web/.next/
-web/out/
+# Next.js
+.next/
+out/
