@@ -10,6 +10,7 @@ venv/
 .env
 .env.*
 !.env.example
+.mcp/config.json
 
 # Tooling
 .coverage
@@ -19,5 +20,8 @@ htmlcov/
 
 # Runtime data
 data/
-.agents/
-skills-lock.json
+
+# Web
+web/node_modules/
+web/.next/
+web/out/

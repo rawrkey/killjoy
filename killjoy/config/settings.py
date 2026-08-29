@@ -28,12 +28,21 @@ class Settings(BaseSettings):
     alpaca_api_key: SecretStr | None = None
     alpaca_secret_key: SecretStr | None = None
     alpaca_paper: bool = True
+    alpaca_paper_trade: bool = True
+    alpaca_toolsets: str = "account,trading,assets,stock-data,options-data,news"
 
     @field_validator("alpaca_paper")
     @classmethod
     def require_paper_trading(cls, value: bool) -> bool:
         if not value:
             raise ValueError("KILLJOY supports paper trading only; ALPACA_PAPER must be true.")
+        return value
+
+    @field_validator("alpaca_paper_trade")
+    @classmethod
+    def require_mcp_paper_trading(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("KILLJOY supports paper trading only; ALPACA_PAPER_TRADE must be true.")
         return value
 
     @property

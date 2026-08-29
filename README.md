@@ -1,49 +1,111 @@
-# KILLJOY
+<div align="center">
 
-> **The AI proposes. The AI attacks. The risk engine decides. Alpaca executes.**
+# `⚡ KILLJOY`
 
-KILLJOY is an autonomous AI options-trading agent built on Alpaca's paper-trading infrastructure. Its defining feature: **every trade is adversarially tested before execution**. The Kill Agent actively tries to disprove every proposal.
+### Autonomous AI Options Trading Agent
+
+**The AI proposes. The AI attacks. The risk engine decides. Alpaca executes.**
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Alpaca SDK](https://img.shields.io/badge/alpaca--py-0.44-green.svg)](https://github.com/alpacahq/alpaca-py)
+[![Tests](https://img.shields.io/badge/tests-62%20passing-brightgreen.svg)](#testing)
+[![Paper Only](https://img.shields.io/badge/mode-paper%20only-yellow.svg)](#safety)
+
+---
+
+</div>
 
 ## Architecture
 
 ```
-Market Data → Market Analyst → Strategy Agent → Kill Agent → Portfolio Check → Risk Engine → Execution → Alpaca Paper
-     ↑                                                                              ↓
-     └──────────────── Position Monitor ← Trade Journal ← Postmortem ←──────────────┘
+Market Data ──► Market Analyst ──► Strategy Agent ──► Kill Agent ──► Portfolio Check ──► Risk Engine ──► Execution ──► Alpaca Paper
+      ↑                                                                                          │
+      └──────────────────────── Position Monitor ◄── Trade Journal ◄── Postmortem ◄──────────────┘
 ```
 
-### Core Pipeline
+Every trade passes through **9 stages** before execution. The Kill Agent actively tries to **disprove** every proposal before it reaches the risk engine.
 
-1. **Market Analyst** — analyzes price action, trend, momentum, volume, regime
-2. **Strategy Agent** — converts thesis into options trade proposals
-3. **Kill Agent** — adversarially tests every proposal (kill score 0.0-1.0)
-4. **Portfolio Agent** — evaluates fit against existing positions
-5. **Risk Engine** — 8 deterministic gates with final veto authority
-6. **Execution Engine** — constructs and submits validated orders via Alpaca SDK
-7. **Position Monitor** — watches P&L, decides HOLD/EXIT
-8. **Trade Journal** — persists full trade lifecycle
-9. **Postmortem** — analyzes completed trades
+---
 
-### Key Design Principles
+## Quick Start
 
-- **LLM never directly controls order execution**
-- **Deterministic risk engine has final veto authority**
-- **Kill Agent tries to kill every trade**
-- **Paper trading only** — live trading is rejected at configuration level
-- **All orders originate from validated structured TradeProposal objects**
+```bash
+# Clone
+git clone https://github.com/rawrkey/killjoy.git
+cd killjoy
 
-## Alpaca Integration
+# Setup
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -e ".[dev,api]"
 
-### Trading API / Python SDK
+# Configure
+copy .env.example .env          # Add your Alpaca paper keys
 
-- `alpaca-py>=0.44,<0.45` — official Alpaca Python SDK
-- Account, positions, orders, portfolio history
-- Options orders via `MarketOrderRequest` with `OrderClass.MLEG`
-- All Alpaca code isolated in `killjoy/alpaca/`
+# Run CLI
+python main.py --check          # Verify connectivity
+python main.py --status         # Account status
+python main.py --analyze        # Market analysis
+python main.py --paper-cycle    # One-shot dry run
+python main.py --autonomous     # Autonomous loop (30s scans)
 
-### MCP Server
+# Run Web GUI
+cd web && npm install && npm run dev    # Frontend on :3000
+cd api && uvicorn main:app --port 8000  # Backend on :8000
+```
 
-KILLJOY is prepared for Alpaca MCP as the AI-agent tool layer:
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Kill Agent** | Adversarial testing — tries to disprove every trade proposal |
+| **Risk Engine** | 8 deterministic gates with final veto authority |
+| **5 Strategies** | Long Call, Long Put, Bull Call Spread, Bear Put Spread, Iron Condor |
+| **MCP Server** | AI-agent tool layer for Alpaca (65 tools) |
+| **Web GUI** | Real-time dashboard with account, positions, market analysis |
+| **Trade Journal** | Full trade lifecycle persisted to JSON |
+| **Paper Only** | Live trading rejected at configuration level |
+
+---
+
+## Pipeline
+
+| Stage | Component | What It Does |
+|-------|-----------|-------------|
+| 1 | **Market Analyst** | Regime detection, momentum, volume analysis |
+| 2 | **Strategy Agent** | Converts thesis into options trade proposals |
+| 3 | **Kill Agent** | Adversarially tests every proposal (score 0.0–1.0) |
+| 4 | **Portfolio Agent** | Evaluates fit against existing positions |
+| 5 | **Risk Engine** | 8 deterministic gates — final veto authority |
+| 6 | **Execution Engine** | Constructs and submits validated orders |
+| 7 | **Position Monitor** | Watches P&L, decides HOLD/EXIT |
+| 8 | **Trade Journal** | Persists full trade lifecycle |
+| 9 | **Postmortem** | Analyzes completed trades |
+
+---
+
+## Risk Engine
+
+8 deterministic gates — the AI **cannot** bypass them:
+
+| Gate | Default | Description |
+|------|---------|-------------|
+| Max Risk/Trade | $500 | Maximum loss per single trade |
+| Daily Loss Limit | $1,000 | Maximum total daily loss |
+| Options Exposure | $10,000 | Maximum total options exposure |
+| Underlying Exposure | $3,000 | Maximum per-underlying exposure |
+| Min Reward/Risk | 1.0 | Minimum reward-to-risk ratio |
+| Min Buying Power | $500 | Minimum required buying power |
+| Max Positions | 10 | Maximum concurrent positions |
+| Min Confidence | 0.3 | Minimum strategy confidence |
+
+---
+
+## MCP Server
+
+Configured in `.mcp/config.json` for AI-agent tool access:
 
 ```json
 {
@@ -54,89 +116,39 @@ KILLJOY is prepared for Alpaca MCP as the AI-agent tool layer:
       "env": {
         "ALPACA_API_KEY": "your_key",
         "ALPACA_SECRET_KEY": "your_secret",
-        "ALPACA_PAPER_TRADE": "true"
+        "ALPACA_PAPER_TRADE": "true",
+        "ALPACA_TOOLSETS": "account,trading,assets,stock-data,options-data,news"
       }
     }
   }
 }
 ```
 
-Toolsets: `account`, `trading`, `assets`, `stock-data`, `options-data`, `news`
+**Toolsets:** `account` · `trading` · `assets` · `stock-data` · `options-data` · `news`
 
-### CLI
+---
 
-```bash
-# Verify connectivity
-python main.py --check
+## Web GUI
 
-# Show account status
-python main.py --status
+Real-time dashboard built with Next.js + FastAPI:
 
-# Show open positions
-python main.py --positions
+| Page | Description |
+|------|-------------|
+| **Dashboard** | Account overview, connection status, positions |
+| **Positions** | Open positions with P&L |
+| **Market** | Live regime analysis, run paper cycles |
+| **Trade Log** | Alpaca orders + trade journal |
+| **Settings** | Risk parameters, strategies, MCP config |
 
-# Analyze market
-python main.py --analyze
+---
 
-# Run one-shot dry run
-python main.py --paper-cycle
+## Market Universe
 
-# Run autonomous loop
-python main.py --autonomous
-```
+`SPY` · `QQQ` · `IWM` · `AAPL` · `MSFT` · `NVDA` · `AMZN` · `META` · `GOOGL` · `TSLA`
 
-## Setup
+Configurable via `killjoy/alpaca/market_data.py`.
 
-```bash
-# Clone and setup
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-pip install -e ".[dev]"
-
-# Configure credentials
-copy .env.example .env
-# Edit .env with your Alpaca paper trading keys
-
-# Run
-python main.py --check
-```
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ALPACA_API_KEY` | Yes | Alpaca paper-trading API key |
-| `ALPACA_SECRET_KEY` | Yes | Alpaca paper-trading secret key |
-| `ALPACA_PAPER` | Yes | Must be `true` (live trading rejected) |
-
-## Options Support
-
-| Strategy | Status |
-|----------|--------|
-| Long Call | Implemented |
-| Long Put | Implemented |
-| Bull Call Spread | Implemented |
-| Bear Put Spread | Implemented |
-| Iron Condor | Implemented |
-
-### Market Universe
-
-SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA (configurable)
-
-## Risk Engine
-
-8 deterministic gates with configurable limits:
-
-| Gate | Default Limit |
-|------|--------------|
-| Max risk per trade | $500 |
-| Daily loss limit | $1,000 |
-| Total options exposure | $10,000 |
-| Single underlying exposure | $3,000 |
-| Minimum reward/risk | 1.0 |
-| Minimum buying power | $500 |
-| Max concurrent positions | 10 |
-| Minimum confidence | 0.3 |
+---
 
 ## Testing
 
@@ -144,24 +156,53 @@ SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA (configurable)
 pytest tests/ -v
 ```
 
-62 tests covering: config, client, status, models, options (chain, greeks, liquidity, pricing), strategies, kill agent, risk engine, portfolio agent, position sizing, exposure, monitoring, journal, postmortem.
+62 tests covering: config, client, status, models, options (chain, greeks, liquidity, pricing), strategies (all 5), kill agent, risk engine, portfolio agent, position sizing, exposure, monitoring, journal, postmortem.
 
-## Limitations
+---
 
-- MCP integration prepared but not connected (requires credentials)
-- Real paper-trading connection unverified (requires credentials)
-- No live-trading path exists
-- Self-improvement limited to bounded parameter updates
-- Options support depends on account options trading level
+## Environment Variables
 
-## Architecture Decisions
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ALPACA_API_KEY` | Yes | — | Alpaca API key ID |
+| `ALPACA_SECRET_KEY` | Yes | — | Alpaca secret key |
+| `ALPACA_PAPER` | Yes | `true` | Must be `true` (live rejected) |
+| `ALPACA_PAPER_TRADE` | No | `true` | MCP paper mode |
+| `ALPACA_TOOLSETS` | No | `all` | Comma-separated toolsets |
 
-- Python 3.11+ supported; 3.13.7 used in development
-- Pydantic 2.x for typed models with validation
-- JSON-based trade journal (simple, no database dependency)
-- Deterministic risk engine (no LLM override)
-- Kill score semantics: 0.0 = kill, 1.0 = safe, threshold = 0.4
-- All Alpaca SDK signatures verified against installed 0.44.0 package
+---
+
+## Safety
+
+- **Paper trading only** — live trading rejected at config level
+- **LLM never directly controls order execution**
+- **Deterministic risk engine has final veto authority**
+- **Kill Agent tries to kill every trade**
+- **All orders originate from validated `TradeProposal` objects**
+
+---
+
+## Project Structure
+
+```
+killjoy/
+├── agent/          # AI agents (analyst, strategy, kill, portfolio, postmortem)
+├── alpaca/         # Alpaca SDK adapters
+├── autonomy/       # Autonomous scheduler
+├── config/         # Settings and logging
+├── database/       # Trade journal persistence
+├── execution/      # Order execution
+├── monitoring/     # Position monitoring
+├── options/        # Options engine (chain, greeks, liquidity, pricing)
+├── portfolio/      # Portfolio management
+├── risk/           # Deterministic risk engine
+├── strategies/     # 5 strategy implementations
+api/                # FastAPI backend (web GUI)
+web/                # Next.js frontend (Vercel deployable)
+.mcp/               # MCP server config
+```
+
+---
 
 ## License
 
