@@ -1,1 +1,1 @@
-"""Future LLM/agent interfaces and typed domain models."""
+"""AI agents and domain models."""

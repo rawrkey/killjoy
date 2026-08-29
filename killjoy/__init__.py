@@ -1,3 +1,3 @@
-"""KILLJOY's safe, paper-trading-first application package."""
+"""KILLJOY — autonomous AI options-trading agent."""
 
 __version__ = "0.1.0"

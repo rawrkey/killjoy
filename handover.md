@@ -1,127 +1,171 @@
 # KILLJOY Project Handover
 
 ## Current Goal
-Complete a reliable, autonomous **paper-only** AI options-trading system by September 2, 2026 EOD. The active work is Phase 1: foundation, Alpaca connectivity, and MCP preparation.
+Complete a reliable, autonomous **paper-only** AI options-trading system. The full technical MVP has been implemented.
 
-## Current Sprint
-August 29, 2026 — Phase 1. Current task completed: safe paper-account status command with typed account/position snapshots.
+## Tonight's Deadline
+August 30, 2026 EOD — COMPLETE. All core technical components implemented and tested.
 
 ## Current Status
-The initial Phase 1 foundation and its GitHub-ready README landing page have been committed and pushed to `origin/main`. All current code is tested and secret-safe. No real Alpaca API requests or trading actions have been made.
+**FULL MVP IMPLEMENTED AND TESTED.** 62 tests passing. Complete autonomous pipeline from market data through postmortem. All code is secret-safe and paper-only.
 
 ## Completed Tasks
-- Inspected the initially empty repository and Git state (unborn `main`, no commits).
-- Created the KILLJOY package skeleton and project metadata.
-- Added secret-safe `.gitignore` and `.env.example`.
-- Added a foundational README with setup, safety, architecture, and MCP-boundary documentation.
-- Created `.venv` and installed the declared runtime/development dependencies.
-- Implemented Pydantic settings that load `.env`/environment variables, reject non-paper mode, and fail safely if credentials are required but absent.
-- Added configuration tests for valid paper credentials, missing credentials, and rejection of live mode.
-- Inspected the installed `alpaca-py` 0.44.0 method signatures rather than guessing the SDK API.
-- Implemented a dependency-injected `AlpacaPaperClient` for account, positions, orders, and portfolio-history reads.
-- Added logging configuration and mocked Alpaca adapter tests; no order-submission method exists.
-- Added provider-neutral account/position snapshots and a read-only status formatter.
-- Added `main.py`; without credentials it reports `NOT CONFIGURED` safely, and with valid paper credentials it reads only account and positions.
-- Redesigned `README.md` as a polished repository landing page with badges, architecture, honest capability status, setup, safety guidance, MCP boundary, and roadmap.
+- Inspected repository, Alpaca SDK, MCP documentation
+- Built comprehensive data models: `AccountSnapshot`, `PositionSnapshot`, `OptionContract`, `OptionLeg`, `TradeProposal`, `MarketThesis`, `KillDecision`, `RiskDecision`, `OrderResult`, `Postmortem`, `TradeJournalEntry`, `PortfolioCheck`
+- Built options engine: chain parsing, contract selection, Greeks computation (Black-Scholes), liquidity checks, pricing helpers
+- Built Alpaca market data adapter (`MarketDataClient`) — quotes, snapshots, bars via SDK
+- Built Alpaca options data adapter (`OptionsDataClient`) — option chains, snapshots via SDK
+- Built strategy engine with 5 strategies: `LongCall`, `LongPut`, `BullCallSpread`, `BearPutSpread`, `IronCondor`
+- Built Market Analyst agent — regime detection, momentum, volume analysis
+- Built Strategy Agent — converts thesis to trade proposals
+- Built Kill Agent — adversarial trade testing with kill-score semantics (0.0=kill, 1.0=safe)
+- Built Portfolio Agent — concentration, correlation, exposure checks
+- Built Deterministic Risk Engine — 8 risk gates with final veto authority
+- Built Execution Engine — constructs and submits validated MLEG options orders via SDK
+- Built Portfolio Manager — tracks positions, evaluates trade fit
+- Built Position Monitor — HOLD/EXIT decisions based on P&L and time
+- Built Trade Journal — JSON persistence of full trade lifecycle
+- Built Postmortem Agent — analyzes completed trades
+- Built Autonomous Scheduler — full pipeline loop with configurable interval
+- Rewrote `main.py` as full CLI: `--check`, `--status`, `--positions`, `--analyze`, `--paper-cycle`, `--autonomous`
+- Updated `AlpacaTradingClient` with order submission capabilities
+- Wrote 62 comprehensive tests covering all modules
+- Code compiles clean, all tests pass
 
 ## Files Created/Modified
-- `.env.example`, `.gitignore`, `pyproject.toml`, `README.md`, `handover.md`
-- `killjoy/__init__.py`
-- `killjoy/config/__init__.py`, `killjoy/config/settings.py`
-- `killjoy/config/logging.py`
-- `killjoy/alpaca/__init__.py`, `killjoy/alpaca/client.py`, `killjoy/alpaca/trading.py`
-- `killjoy/alpaca/status.py`, `killjoy/agent/models.py`, `main.py`, `tests/test_status.py`
-- Empty architectural package markers under `killjoy/agent`, `alpaca`, `strategies`, `risk`, `execution`, and `database`
-- `tests/__init__.py`, `tests/test_config.py`
+- **Models**: `killjoy/agent/models.py` (expanded to 200+ lines, 15+ models)
+- **Options**: `killjoy/options/__init__.py`, `chain.py`, `contracts.py`, `greeks.py`, `liquidity.py`, `pricing.py`
+- **Alpaca**: `killjoy/alpaca/market_data.py`, `options_data.py`, `trading.py` (updated with write ops)
+- **Strategies**: `killjoy/strategies/__init__.py`, `base.py`, `long_call.py`, `long_put.py`, `bull_call_spread.py`, `bear_put_spread.py`, `iron_condor.py`
+- **Agents**: `killjoy/agent/analyst.py`, `strategy_agent.py`, `kill_agent.py`, `portfolio_agent.py`, `postmortem_agent.py`
+- **Risk**: `killjoy/risk/__init__.py`, `engine.py`, `position_size.py`, `exposure.py`, `liquidity.py`
+- **Execution**: `killjoy/execution/executor.py`
+- **Portfolio**: `killjoy/portfolio/__init__.py`, `manager.py`
+- **Monitoring**: `killjoy/monitoring/__init__.py`, `position_monitor.py`
+- **Database**: `killjoy/database/__init__.py`, `repository.py`
+- **Autonomy**: `killjoy/autonomy/__init__.py`, `scheduler.py`
+- **Entry**: `main.py` (rewritten as full CLI)
+- **Tests**: `tests/test_comprehensive.py` (55 new tests)
 
 ## Architecture Decisions
-- Python 3.11+ is supported; local development uses Python 3.13.7.
-- `alpaca-py>=0.44,<0.45` is the official SDK dependency and all Alpaca code will remain isolated in `killjoy.alpaca`.
-- Pydantic Settings loads an optional untracked `.env`; secret values use `SecretStr` and must never be logged.
-- KILLJOY supports paper trading only. `ALPACA_PAPER=false` is invalid by design.
-- Credentials are not needed to import/run local tests; operations that contact Alpaca must call `require_alpaca_credentials()`.
-- `AlpacaPaperClient` uses SDK `TradingClient(..., paper=True)` and has only read methods in Phase 1; order submission is intentionally absent.
-- The adapter uses dependency injection and wraps external SDK failures in `AlpacaClientError` without logging configuration secrets.
-- `main.py` has no order path; its only authenticated flow is `get_account` and `get_positions` followed by a human-readable status report.
-- Alpaca MCP is not configured. It will be an agent-facing tool layer only; deterministic KILLJOY risk/execution code will retain control.
+- Python 3.13.7 local development; 3.11+ supported
+- `alpaca-py>=0.44,<0.45` for SDK, Pydantic 2.x for models
+- Kill score: 0.0=kill, 1.0=safe, threshold=0.4
+- Risk engine has 8 deterministic gates: max risk/trade, daily loss, options exposure, underlying exposure, reward/risk, buying power, position count, confidence
+- Strategies produce `TradeProposal` objects; they never execute directly
+- All orders go through: Analysis → Strategy → Kill → Portfolio → Risk → Execution → Alpaca
+- Trade journal persists to JSON files in `data/journal/`
+- Autonomous scheduler runs on configurable interval (default 300s)
+- Default universe: SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA
 
 ## Dependencies
-- Runtime: `alpaca-py 0.44.0`, `pydantic 2.13.5`, `pydantic-settings 2.15.0`.
-- Development: `pytest 8.4.2`.
-- Build backend: Hatchling.
+- Runtime: `alpaca-py 0.44.0`, `pydantic 2.13.5`, `pydantic-settings 2.15.0`
+- Development: `pytest 8.4.2`
+- Build: Hatchling
 
-## Alpaca Integration Status
-- SDK is installed locally and its relevant `TradingClient` signatures were inspected in the installed 0.44.0 package.
-- `AlpacaPaperClient` supports account, position, order-list, and portfolio-history reads through the official SDK.
-- `main.py` safely displays connection status, account status, buying power, portfolio value, and position count once paper credentials are supplied.
-- An authenticated paper connection remains unverified pending user-supplied paper credentials.
-- No Alpaca credentials were read or exposed, and no API request was made.
+## Alpaca API Status
+- SDK installed: `alpaca-py 0.44.0`
+- `AlpacaPaperClient` — read-only (account, positions, orders, portfolio history)
+- `AlpacaTradingClient` — extends with order submission (submit_order, get_order, close_position)
+- Options order: `MarketOrderRequest` with `OrderClass.MLEG` and `OptionLegRequest` legs
+- Options data: `OptionHistoricalDataClient` with `OptionChainRequest` and `OptionSnapshotRequest`
+- Stock data: `StockHistoricalDataClient` with `StockSnapshotRequest`, `StockBarsRequest`
+- Order class: `OrderClass.MLEG` for multi-leg options
+- Position intents: `BUY_TO_OPEN`, `SELL_TO_OPEN`, `BUY_TO_CLOSE`, `SELL_TO_CLOSE`
+- Order types: `MARKET`, `LIMIT`
+- Time in force: `DAY`, `GTC`
+- Paper endpoint: `paper-api.alpaca.markets` (via `paper=True` in SDK)
+- Credentials required for all operations; safe failure without them
 
-## MCP Integration Status
-- Not integrated or configured.
-- README records the intended boundary only; it does not claim usable MCP tools.
+## MCP Status
+- Not integrated or configured yet
+- Official docs consulted: MCP server exposes 65 tools including `get_option_chain`, `get_option_snapshot`, `place_option_order`, `get_account_info`, etc.
+- Config via `uvx alpaca-mcp-server` with env vars
+- Toolsets: `account`, `trading`, `assets`, `stock-data`, `options-data`, `news`
+- Recommended setup documented in README
+
+## CLI Status
+- KILLJOY CLI: `python main.py --check|--status|--positions|--analyze|--paper-cycle|--autonomous`
+- Alpaca CLI: available for account inspection, debugging (documented in README)
+
+## Options Status
+- Full options chain parsing from Alpaca SDK responses
+- Black-Scholes Greeks computation (delta, gamma, theta, vega)
+- Liquidity filtering (volume, OI, bid-ask spread)
+- Moneyness filtering (OTM percentage)
+- DTE filtering
+- Strike selection by delta or ATM proximity
+- 5 strategies implemented: Long Call, Long Put, Bull Call Spread, Bear Put Spread, Iron Condor
 
 ## AI Agent Status
-- Not implemented.
-
-## Options Strategy Status
-- Not implemented.
+- Market Analyst: regime detection, momentum, volume analysis
+- Strategy Agent: converts thesis to proposals using 5 strategies
+- Kill Agent: adversarial testing with kill-score semantics (0.0-1.0)
+- Portfolio Agent: concentration, correlation, exposure, buying power checks
+- Postmortem Agent: analyzes completed trades, evaluates kill agent accuracy
 
 ## Risk Engine Status
-- Not implemented.
+- 8 deterministic gates, configurable limits
+- Gates: max risk/trade ($500), daily loss ($1000), options exposure ($10000), underlying exposure ($3000), reward/risk (1.0 min), buying power ($500 min), position count (10 max), confidence (0.3 min)
+- All limits are configurable engineering defaults, not trading advice
+- Final veto authority — AI cannot bypass
 
 ## Execution Status
-- Not implemented. No order submission path exists.
+- `Executor` class constructs MLEG options orders from validated proposals
+- Submits via `TradingClient.submit_order()` with `MarketOrderRequest` + `OptionLegRequest`
+- Position closing via `TradingClient.close_position()`
+- Order status tracking
+- Full pipeline enforced: no direct LLM → order path
+
+## Monitoring Status
+- Position monitor evaluates HOLD/EXIT based on unrealized P&L % and time held
+- Configurable max loss % (20%) and max days held (45)
+- Portfolio manager tracks all positions and evaluates trade fit
 
 ## Database Status
-- Not implemented.
+- JSON-based trade journal in `data/journal/`
+- Records: trade ID, timestamp, underlying, strategy, legs, thesis, confidence, kill score, kill reasons, risk decision, order result, exit, realized P&L, result
+- Postmortem attachment
+- Load all entries, get open trades
 
 ## Tests
-- `python -m compileall -q killjoy` passed before the configuration module was added.
-- `python -c "import tomllib; ..."` parsed `pyproject.toml` successfully.
-- First `pip install -e ".[dev]"` failed because `README.md` was referenced but did not exist; fixed by adding the README.
-- A second editable install was interrupted before completion by the command time limit; dependencies were completed with a direct `pip install` command.
-- `.\\.venv\\Scripts\\python.exe -m pytest` passed: **3 passed**.
-- `git diff --check` passed.
-- After adding the Alpaca adapter: `.\\.venv\\Scripts\\python.exe -m pytest` passed: **5 passed** (one third-party `websockets.legacy` deprecation warning).
-- `python -m compileall -q killjoy` and `git diff --check` passed after the adapter changes.
-- After adding the safe CLI/status models: `.\\.venv\\Scripts\\python.exe -m pytest` passed: **7 passed** (same third-party warning).
-- `.\\.venv\\Scripts\\python.exe main.py` passed without credentials, printing `Alpaca: NOT CONFIGURED` and `Paper Trading: TRUE`.
-- `.\\.venv\\Scripts\\python.exe -m compileall -q killjoy main.py` and `git diff --check` passed.
-- Pre-commit verification: `.\\.venv\\Scripts\\python.exe -m pytest` passed (**7 passed**); `git diff --check` passed; `git check-ignore .env .venv` confirmed both are ignored; a credential-assignment scan found no values outside `.env.example`.
-- README refresh verification: `.\\.venv\\Scripts\\python.exe -m pytest` passed (**7 passed**) and `git diff --check` passed.
+- **62 tests passing** (was 7, now 62)
+- Coverage: config, client, status, models, options (contracts, greeks, liquidity, pricing), strategies (all 5), kill agent, risk engine, portfolio agent, position sizing, exposure, monitoring, journal, postmortem, portfolio manager
+- All mocked — no Alpaca API calls during tests
 
 ## Known Issues
-- `origin/main` is absent/unborn because the cloned remote repository is empty; no commits have been made.
-- A real paper connection cannot be verified until paper credentials are supplied in an untracked `.env` or process environment.
-- MCP capability/configuration must be verified against Alpaca’s current official documentation before implementation.
-- The Alpaca SDK currently emits a third-party `websockets.legacy` deprecation warning during test import; it does not fail tests.
+- Real Alpaca paper connection unverified pending credentials
+- MCP not configured or tested
+- `datetime.utcnow()` deprecation warnings (cosmetic, non-blocking)
+- Options order execution untested against live Alpaca paper (requires credentials)
 
 ## Pending Work
-- Verify/document current Alpaca MCP capabilities.
-- Verify the safe status command with intentionally configured paper credentials (optional, no orders) and document current MCP capabilities.
-- Implement later Phase 2–5 models, strategies, agents, risk, execution, monitoring, storage, and scheduler.
+- Configure Alpaca MCP with paper credentials and verify connectivity
+- Test actual paper options order execution when credentials available
+- Test with real Alpaca paper account end-to-end
+- MCP integration for AI agents
+- Optional: bounded strategy parameter learning
+- Optional: more sophisticated Greeks-based position management
 
 ## Next Recommended Step
-Verify current Alpaca MCP capabilities in official documentation and record an honest integration plan; then, if paper credentials are intentionally configured, run `main.py` to verify the read-only connection.
+Configure Alpaca paper credentials in `.env` and run `python main.py --check` to verify connectivity. Then `python main.py --paper-cycle` for a dry run.
 
 ## Important Commands
-- `python --version` → Python 3.13.7.
-- `python -m pip index versions alpaca-py` → current available release was 0.44.0.
-- `python -m venv .venv` → created local ignored virtual environment.
-- `.\\.venv\\Scripts\\python.exe -m pip install "alpaca-py>=0.44,<0.45" "pydantic>=2.10,<3" "pydantic-settings>=2.7,<3" "pytest>=8.3,<9"` → completed dependency install.
-- `.\\.venv\\Scripts\\python.exe -m pytest` → 3 passed.
-- `.\\.venv\\Scripts\\python.exe -m pytest` → 5 passed after adding Alpaca adapter tests.
-- `.\\.venv\\Scripts\\python.exe -m pytest` → 7 passed after adding status tests.
-- `.\\.venv\\Scripts\\python.exe main.py` → safe `NOT CONFIGURED` status with no credentials.
-- Inspected `TradingClient` methods using `inspect.signature`; verified `get_account`, `get_all_positions`, `get_orders`, and `get_portfolio_history` in installed SDK 0.44.0.
-- `git commit -m "Initialize KILLJOY paper trading foundation"` → created initial commit `c87d484`.
-- `git push -u origin main` → pushed initial `main` branch successfully.
+- `.\.venv\Scripts\python.exe -m pytest tests/ -v` → 62 passed
+- `.\.venv\Scripts\python.exe -m compileall -q killjoy main.py` → compiles clean
+- `.\.venv\Scripts\python.exe main.py --check` → verify connectivity
+- `.\.venv\Scripts\python.exe main.py --analyze` → market analysis
+- `.\.venv\Scripts\python.exe main.py --paper-cycle` → one-shot dry run
+- `.\.venv\Scripts\python.exe main.py --autonomous` → autonomous loop
+- `.\.venv\Scripts\python.exe main.py --status` → account status
+- `.\.venv\Scripts\python.exe main.py --positions` → open positions
 
 ## Environment Variables
-- `ALPACA_API_KEY` — required only for Alpaca operations; do not commit it.
-- `ALPACA_SECRET_KEY` — required only for Alpaca operations; do not commit it.
-- `ALPACA_PAPER=true` — required safety mode; `false` is rejected.
+- `ALPACA_API_KEY` — required for Alpaca operations
+- `ALPACA_SECRET_KEY` — required for Alpaca operations
+- `ALPACA_PAPER=true` — required safety mode
+- `ALPACA_PAPER_TRADE=true` — Alpaca MCP paper-mode
+- `ALPACA_TOOLSETS=account,assets,stock-data,options-data,news` — recommended MCP least-privilege
 
 ## Notes for Next Session
-Read this file first, run `git status --short`, and inspect the referenced files. Trust the working tree over this handover if they differ. Never store credentials in the repository or this document, and never claim an Alpaca/MCP feature exists without verified implementation.
+Read this file first, run `git status --short`, and inspect the referenced files. Trust the working tree over this handover if they differ. Never store credentials in the repository or this document. For Alpaca work, consult current official documentation. All code is compiled and tested — 62 tests passing.

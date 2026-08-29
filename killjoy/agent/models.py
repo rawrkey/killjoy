@@ -2,19 +2,233 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
+
+# ---------------------------------------------------------------------------
+# Account / Position snapshots
+# ---------------------------------------------------------------------------
 
 class AccountSnapshot(BaseModel):
     status: str
     buying_power: Decimal
     portfolio_value: Decimal
+    equity: Decimal = Decimal("0")
+    cash: Decimal = Decimal("0")
+    day_trade_count: int = 0
 
 
 class PositionSnapshot(BaseModel):
     symbol: str
     quantity: Decimal = Field(alias="qty")
+    side: str = ""
+    avg_entry_price: Decimal = Decimal("0")
+    current_price: Decimal = Decimal("0")
+    unrealized_pl: Decimal = Decimal("0")
+    unrealized_plpc: Decimal = Decimal("0")
 
     model_config = {"populate_by_name": True}
+
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+
+class OptionType(str, Enum):
+    CALL = "call"
+    PUT = "put"
+
+
+class OptionContract(BaseModel):
+    symbol: str
+    underlying: str
+    strike: Decimal
+    expiration: date
+    option_type: OptionType
+    bid: Decimal = Decimal("0")
+    ask: Decimal = Decimal("0")
+    mid: Decimal = Decimal("0")
+    last: Decimal = Decimal("0")
+    volume: int = 0
+    open_interest: int = 0
+    implied_volatility: Decimal = Decimal("0")
+    delta: Decimal = Decimal("0")
+    gamma: Decimal = Decimal("0")
+    theta: Decimal = Decimal("0")
+    vega: Decimal = Decimal("0")
+
+
+class OptionLeg(BaseModel):
+    contract_symbol: str
+    option_type: OptionType
+    strike: Decimal
+    expiration: date
+    side: str  # "buy" or "sell"
+    quantity: int = 1
+    bid: Decimal = Decimal("0")
+    ask: Decimal = Decimal("0")
+    mid: Decimal = Decimal("0")
+    delta: Decimal = Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# Strategy / Trade
+# ---------------------------------------------------------------------------
+
+class StrategyType(str, Enum):
+    LONG_CALL = "long_call"
+    LONG_PUT = "long_put"
+    BULL_CALL_SPREAD = "bull_call_spread"
+    BEAR_PUT_SPREAD = "bear_put_spread"
+    IRON_CONDOR = "iron_condor"
+
+
+class MarketRegime(str, Enum):
+    STRONG_UPTREND = "strong_uptrend"
+    UPTREND = "uptrend"
+    SIDEWAYS = "sideways"
+    DOWNTREND = "downtrend"
+    STRONG_DOWNTREND = "strong_downtrend"
+    HIGH_VOLATILITY = "high_volatility"
+    LOW_VOLATILITY = "low_volatility"
+
+
+class MarketThesis(BaseModel):
+    underlying: str
+    regime: MarketRegime
+    confidence: Decimal = Field(ge=0, le=1, default=Decimal("0.5"))
+    thesis: str = ""
+    observations: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    current_price: Decimal = Decimal("0")
+    iv_rank: Decimal = Decimal("0")
+    trend_strength: Decimal = Decimal("0")
+    momentum: Decimal = Decimal("0")
+    volume_signal: str = "neutral"
+
+
+class TradeProposal(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    underlying: str
+    strategy: StrategyType
+    legs: list[OptionLeg]
+    expiration: date
+    max_loss: Decimal
+    max_profit: Decimal
+    reward_risk: Decimal = Decimal("0")
+    confidence: Decimal = Field(ge=0, le=1, default=Decimal("0.5"))
+    thesis: str = ""
+    kill_score: Decimal = Field(ge=0, le=1, default=Decimal("0"))
+    kill_reasons: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Kill Agent
+# ---------------------------------------------------------------------------
+
+class KillDecision(BaseModel):
+    proposal_id: str
+    kill_score: Decimal = Field(ge=0, le=1, description="0=clear kill, 1=safe")
+    kill_reasons: list[str] = Field(default_factory=list)
+    survives: bool = False
+    confidence: Decimal = Field(ge=0, le=1, default=Decimal("0.5"))
+    analysis: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Risk
+# ---------------------------------------------------------------------------
+
+class RiskCheck(BaseModel):
+    name: str
+    passed: bool
+    value: Any = None
+    limit: Any = None
+    reason: str = ""
+
+
+class RiskDecision(BaseModel):
+    proposal_id: str
+    approved: bool
+    failed_checks: list[RiskCheck] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Execution
+# ---------------------------------------------------------------------------
+
+class OrderResult(BaseModel):
+    order_id: str = ""
+    client_order_id: str = ""
+    status: str = "pending"
+    filled_avg_price: Decimal = Decimal("0")
+    filled_qty: Decimal = Decimal("0")
+    symbol: str = ""
+    side: str = ""
+    type: str = ""
+    submitted_at: datetime | None = None
+    filled_at: datetime | None = None
+    error: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Portfolio
+# ---------------------------------------------------------------------------
+
+class PortfolioCheck(BaseModel):
+    approved: bool
+    reasons: list[str] = Field(default_factory=list)
+    concentration: dict[str, Decimal] = Field(default_factory=dict)
+    total_options_exposure: Decimal = Decimal("0")
+    buying_power_available: Decimal = Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# Postmortem
+# ---------------------------------------------------------------------------
+
+class Postmortem(BaseModel):
+    trade_id: str
+    underlying: str
+    strategy: str
+    original_thesis: str = ""
+    actual_outcome: str = ""
+    thesis_correct: bool | None = None
+    win_loss: str = ""  # "win", "loss", "breakeven"
+    realized_pnl: Decimal = Decimal("0")
+    kill_agent_accurate: bool | None = None
+    improvements: list[str] = Field(default_factory=list)
+    lessons: list[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Trade Journal Entry
+# ---------------------------------------------------------------------------
+
+class TradeJournalEntry(BaseModel):
+    trade_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    underlying: str = ""
+    strategy: str = ""
+    legs: list[OptionLeg] = Field(default_factory=list)
+    thesis: str = ""
+    confidence: Decimal = Decimal("0")
+    kill_score: Decimal = Decimal("0")
+    kill_reasons: list[str] = Field(default_factory=list)
+    risk_decision: RiskDecision | None = None
+    order_result: OrderResult | None = None
+    exit_order: OrderResult | None = None
+    realized_pnl: Decimal = Decimal("0")
+    result: str = ""  # "open", "win", "loss", "breakeven", "closed"
+    postmortem: Postmortem | None = None
