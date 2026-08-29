@@ -1,79 +1,75 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, PositionsResponse } from '@/lib/api';
 
 export default function PositionsPage() {
+  const router = useRouter();
   const [data, setData] = useState<PositionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const key = localStorage.getItem('killjoy_api_key');
+    if (!key) { router.push('/setup'); return; }
     api.positions().then(setData).catch(e => setError(e.message));
-  }, []);
+  }, [router]);
 
   return (
     <>
-      <div className="page-header">
-        <h2>Positions</h2>
-        <div className="subtitle">Open positions across all accounts</div>
-      </div>
+      {error && <div className="alert alert-error">{error}</div>}
 
-      {error && <div className="error">{error}</div>}
-
-      {data && data.count === 0 && (
-        <div className="card">
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>
-            No open positions
-          </div>
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">All Positions</span>
+          <span className="badge badge-muted">{data?.count ?? 0}</span>
         </div>
-      )}
-
-      {data && data.count > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">All Positions</span>
-            <span className="badge badge-blue">{data.count}</span>
-          </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th>Qty</th>
-                  <th>Avg Entry</th>
-                  <th>Current</th>
-                  <th>Market Value</th>
-                  <th>P&L</th>
-                  <th>P&L %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.positions.map((p, i) => (
-                  <tr key={i}>
-                    <td><strong>{p.symbol}</strong></td>
-                    <td>
-                      <span className={`badge ${p.side === 'long' ? 'badge-green' : 'badge-red'}`}>
-                        {p.side}
-                      </span>
-                    </td>
-                    <td>{p.qty}</td>
-                    <td>${Number(p.avg_entry_price).toFixed(2)}</td>
-                    <td>${Number(p.current_price).toFixed(2)}</td>
-                    <td>${Number(p.market_value).toFixed(2)}</td>
-                    <td className={Number(p.unrealized_pl) >= 0 ? 'positive' : 'negative'}>
-                      ${Number(p.unrealized_pl).toFixed(2)}
-                    </td>
-                    <td className={Number(p.unrealized_plpc) >= 0 ? 'positive' : 'negative'}>
-                      {(Number(p.unrealized_plpc) * 100).toFixed(2)}%
-                    </td>
+        <div className="card-body">
+          {!data ? (
+            <div className="loading-state"><span className="spinner" /> Loading...</div>
+          ) : data.count === 0 ? (
+            <div className="empty-state">
+              <div className="icon">&#9650;</div>
+              <p>No open positions</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Avg Entry</th>
+                    <th>Current</th>
+                    <th>Market Value</th>
+                    <th>Unrealized P&L</th>
+                    <th>P&L %</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.positions.map((p, i) => (
+                    <tr key={i}>
+                      <td><strong>{p.symbol}</strong></td>
+                      <td><span className={`badge ${p.side === 'long' ? 'badge-green' : 'badge-red'}`}>{p.side}</span></td>
+                      <td className="mono">{p.qty}</td>
+                      <td className="mono">${Number(p.avg_entry_price).toFixed(2)}</td>
+                      <td className="mono">${Number(p.current_price).toFixed(2)}</td>
+                      <td className="mono">${Number(p.market_value).toFixed(2)}</td>
+                      <td className="mono" style={{ color: Number(p.unrealized_pl) >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {Number(p.unrealized_pl) >= 0 ? '+' : ''}${Number(p.unrealized_pl).toFixed(2)}
+                      </td>
+                      <td className="mono" style={{ color: Number(p.unrealized_plpc) >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {Number(p.unrealized_plpc) >= 0 ? '+' : ''}{(Number(p.unrealized_plpc) * 100).toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </>
   );
 }

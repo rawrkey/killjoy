@@ -12,7 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div className="app">
           <Sidebar />
-          <main className="main">{children}</main>
+          <main className="main">
+            <Topbar />
+            <div className="content">{children}</div>
+          </main>
         </div>
       </body>
     </html>
@@ -22,35 +25,44 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <h1>KILLJOY</h1>
-        <div className="tagline">AI OPTIONS TRADING</div>
+      <div className="sidebar-header">
+        <div className="logo">KILLJOY</div>
+        <div className="sub">AI Options Trading</div>
       </div>
-      <nav>
-        <a href="/" className="nav-item active">
-          <span className="icon">&#9632;</span>
+      <nav className="sidebar-nav">
+        <a href="/" className="nav-link active">
+          <span className="nav-icon">&#9632;</span>
           <span>Dashboard</span>
         </a>
-        <a href="/positions" className="nav-item">
-          <span className="icon">&#9650;</span>
+        <a href="/positions" className="nav-link">
+          <span className="nav-icon">&#9650;</span>
           <span>Positions</span>
         </a>
-        <a href="/market" className="nav-item">
-          <span className="icon">&#9670;</span>
+        <a href="/market" className="nav-link">
+          <span className="nav-icon">&#9670;</span>
           <span>Market</span>
         </a>
-        <a href="/trades" className="nav-item">
-          <span className="icon">&#9654;</span>
-          <span>Trade Log</span>
+        <a href="/trades" className="nav-link">
+          <span className="nav-icon">&#9654;</span>
+          <span>Trades</span>
         </a>
-        <a href="/settings" className="nav-item">
-          <span className="icon">&#9881;</span>
+        <a href="/settings" className="nav-link">
+          <span className="nav-icon">&#9881;</span>
           <span>Settings</span>
         </a>
       </nav>
-      <div className="sidebar-footer">
-        v0.1.0 &middot; Paper Only
-      </div>
+      <div className="sidebar-footer">v0.1.0 &middot; Paper Only</div>
     </aside>
+  );
+}
+
+function Topbar() {
+  return (
+    <div className="topbar">
+      <div className="topbar-title">Dashboard</div>
+      <div className="topbar-actions">
+        <span className="badge badge-green">PAPER</span>
+      </div>
+    </div>
   );
 }
