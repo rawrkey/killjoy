@@ -10,7 +10,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.check().then(setConnected).catch(e => setError(e.message));
+    api.check().then(r => setConnected(r.connected)).catch(e => setError(e.message));
     api.account().then(setAccount).catch(() => {});
     api.positions().then(setPositions).catch(() => {});
   }, []);
