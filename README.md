@@ -10,9 +10,6 @@ An autonomous AI options trading agent that uses adversarial AI debate to challe
 [![Tests](https://img.shields.io/badge/tests-110_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
 [![Paper Only](https://img.shields.io/badge/mode-paper_only-FFD600?style=flat&logo=shield&logoColor=black)](#safety)
 
-**Live Demo:** [killjoy-three.vercel.app](https://killjoy-three.vercel.app)
-**Backend API:** [killjoy-txgw.onrender.com](https://killjoy-txgw.onrender.com)
-
 ---
 
 ## How It Works
@@ -182,14 +179,14 @@ Any OpenAI-compatible endpoint works: OpenAI, OmniRouter, Ollama, vLLM, LiteLLM.
 
 1. Push to GitHub
 2. Connect repo to [Vercel](https://vercel.com)
-3. Set environment variable: `NEXT_PUBLIC_API_URL=https://killjoy-txgw.onrender.com`
+3. Set environment variable: `NEXT_PUBLIC_API_URL=<your-render-url>`
 4. Auto-deploys on push
 
 ### Autonomous Mode (cron-job.org)
 
 1. Create free account at [cron-job.org](https://cron-job.org)
 2. Create cron job:
-   - URL: `https://killjoy-txgw.onrender.com/api/cron/run`
+   - URL: `<your-render-url>/api/cron/run`
    - Schedule: `*/15 * * * *` (every 15 minutes)
 3. Click "Start Auto-Trading" on the dashboard
 
