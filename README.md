@@ -340,7 +340,7 @@ killjoy/
 app/                        Next.js Frontend
 backend/                    FastAPI Backend
 .mcp/                       MCP Server Config
-tests/                      Test Suite (110 tests)
+tests/                      Test Suite (109 tests)
 main.py                     CLI Entry Point
 ```
 
