@@ -41,9 +41,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -140,25 +141,29 @@ def positions():
 @app.get("/api/orders")
 def orders():
     """Get recent orders."""
-    client = _get_trading_client()
-    from alpaca.trading.enums import QueryOrderStatus
-    from alpaca.trading.requests import GetOrdersRequest
-    req = GetOrdersRequest(status=QueryOrderStatus.ALL)
-    ords = client.get_orders(req)
-    result = []
-    for o in ords:
-        result.append({
-            "id": str(getattr(o, "id", "")),
-            "symbol": getattr(o, "symbol", ""),
-            "side": str(getattr(o, "side", "")),
-            "type": str(getattr(o, "type", "")),
-            "status": str(getattr(o, "status", "")),
-            "qty": _decimal_to_str(getattr(o, "qty", 0)),
-            "filled_qty": _decimal_to_str(getattr(o, "filled_qty", 0)),
-            "submitted_at": str(getattr(o, "submitted_at", "")),
-            "filled_at": str(getattr(o, "filled_at", "")),
-        })
-    return {"orders": result, "count": len(result)}
+    try:
+        client = _get_trading_client()
+        from alpaca.trading.enums import QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
+        req = GetOrdersRequest(status=QueryOrderStatus.ALL)
+        ords = client.get_orders(req)
+        result = []
+        for o in ords:
+            result.append({
+                "id": str(getattr(o, "id", "")),
+                "symbol": getattr(o, "symbol", ""),
+                "side": str(getattr(o, "side", "")),
+                "type": str(getattr(o, "type", "")),
+                "status": str(getattr(o, "status", "")),
+                "qty": _decimal_to_str(getattr(o, "qty", 0)),
+                "filled_qty": _decimal_to_str(getattr(o, "filled_qty", 0)),
+                "submitted_at": str(getattr(o, "submitted_at", "")),
+                "filled_at": str(getattr(o, "filled_at", "")),
+            })
+        return {"orders": result, "count": len(result)}
+    except Exception as e:
+        logger.warning("Failed to fetch orders: %s", e)
+        return {"orders": [], "count": 0}
 
 
 @app.get("/api/analyze")

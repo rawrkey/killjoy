@@ -226,6 +226,7 @@ class PerformanceAnalytics:
             "realized_pnl": 0,
             "win_count": 0,
             "loss_count": 0,
+            "breakeven_count": 0,
             "win_rate": 0,
             "avg_win": 0,
             "avg_loss": 0,

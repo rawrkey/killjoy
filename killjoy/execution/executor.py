@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from alpaca.trading.client import TradingClient
@@ -54,7 +54,7 @@ class Executor:
         # 1. Duplicate order protection
         client_order_id = self._generate_client_order_id(proposal)
         if client_order_id in self._recent_orders:
-            age = (datetime.utcnow() - self._recent_orders[client_order_id]).seconds
+            age = (datetime.now(timezone.utc) - self._recent_orders[client_order_id]).seconds
             if age < self._max_order_age_seconds:
                 logger.warning(
                     "Duplicate order blocked: %s %s (same order %ds ago)",
@@ -90,7 +90,7 @@ class Executor:
             order = self._client.submit_order(order_request)
 
             # Track submitted order
-            self._recent_orders[client_order_id] = datetime.utcnow()
+            self._recent_orders[client_order_id] = datetime.now(timezone.utc)
             self._cleanup_old_orders()
 
             return OrderResult(
@@ -122,7 +122,7 @@ class Executor:
 
     def _cleanup_old_orders(self) -> None:
         """Remove old entries from the duplicate tracking dict."""
-        cutoff = datetime.utcnow() - timedelta(seconds=self._max_order_age_seconds * 2)
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._max_order_age_seconds * 2)
         self._recent_orders = {
             oid: ts for oid, ts in self._recent_orders.items()
             if ts > cutoff

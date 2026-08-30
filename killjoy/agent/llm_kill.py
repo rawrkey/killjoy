@@ -17,10 +17,12 @@ Architecture:
 
 Kill Score Semantics (consistent everywhere):
   0.00 - 0.20: KILL — Major red flags, trade should not proceed
-  0.20 - 0.40: WEAK — Significant concerns, likely reject
-  0.40 - 0.60: MARGINAL — Some concerns, proceed with caution
+  0.20 - 0.40: WEAK — Significant concerns, rejected by threshold
+  0.40 - 0.60: MARGINAL — Some concerns, passes threshold but risky
   0.60 - 0.80: DECENT — Minor concerns, acceptable
   0.80 - 1.00: STRONG — Few or no concerns, should proceed
+
+Threshold: 0.40 — trades below this score are killed.
 
 The final execution decision remains deterministic.
 """

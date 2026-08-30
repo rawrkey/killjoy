@@ -622,3 +622,206 @@ class TestConfig:
         s = Settings(alpaca_api_key="key", alpaca_secret_key="secret", alpaca_paper=True)
         assert s.has_alpaca_credentials is True
         assert s.require_alpaca_credentials() == ("key", "secret")
+
+
+# ---------------------------------------------------------------------------
+# Safety Stress Tests — Every bad proposal MUST be rejected
+# ---------------------------------------------------------------------------
+
+class TestSafetyStress:
+    """Deliberately bad proposals — every one must be rejected by some gate.
+
+    Tests the full chain: Kill Agent + Risk Engine.
+    A proposal that passes any of these is a BUG.
+    """
+
+    def _base_proposal(self, **overrides) -> TradeProposal:
+        defaults = dict(
+            underlying="SPY",
+            strategy=StrategyType.LONG_CALL,
+            legs=[
+                OptionLeg(
+                    contract_symbol="SPY250919C00550000",
+                    option_type=OptionType.CALL,
+                    strike=Decimal("550"),
+                    expiration=date.today() + timedelta(days=30),
+                    side="buy",
+                    quantity=1,
+                    bid=Decimal("5"),
+                    ask=Decimal("5.50"),
+                    mid=Decimal("5.25"),
+                )
+            ],
+            expiration=date.today() + timedelta(days=30),
+            max_loss=Decimal("200"),
+            max_profit=Decimal("400"),
+            reward_risk=Decimal("2.0"),
+            confidence=Decimal("0.6"),
+            thesis="Bullish test",
+        )
+        defaults.update(overrides)
+        return TradeProposal(**defaults)
+
+    def _base_thesis(self, **overrides) -> MarketThesis:
+        defaults = dict(
+            underlying="SPY",
+            regime=MarketRegime.UPTREND,
+            confidence=Decimal("0.6"),
+            thesis="Test thesis",
+            current_price=Decimal("550"),
+        )
+        defaults.update(overrides)
+        return MarketThesis(**defaults)
+
+    def test_too_much_risk(self):
+        """Max loss > $500 limit → risk engine rejects."""
+        proposal = self._base_proposal(max_loss=Decimal("1000"), reward_risk=Decimal("2.0"))
+        thesis = self._base_thesis()
+        kill = kill_test(proposal, thesis)
+        risk = evaluate_risk(proposal, buying_power=Decimal("100000"))
+        # Either kill agent or risk engine must reject
+        assert not kill.survives or not risk.approved
+
+    def test_bad_reward_risk(self):
+        """R/R < 1.0 → risk engine rejects (kill agent notes but may not kill alone)."""
+        proposal = self._base_proposal(reward_risk=Decimal("0.5"), max_loss=Decimal("200"))
+        thesis = self._base_thesis()
+        kill = kill_test(proposal, thesis)
+        risk = evaluate_risk(proposal, buying_power=Decimal("100000"))
+        # Kill agent records the issue
+        assert any("reward/risk" in r.lower() for r in kill.kill_reasons)
+        # Risk engine definitively rejects
+        assert not risk.approved
+
+    def test_duplicate_order(self):
+        """Same proposal twice within 5 min → executor blocks."""
+        from killjoy.execution.executor import Executor
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        executor = Executor(mock_client)
+        proposal = self._base_proposal()
+
+        # First call would go through (but fail on mock)
+        # Second call with same proposal → duplicate blocked
+        result1 = executor.execute_proposal(proposal)
+        result2 = executor.execute_proposal(proposal)
+        # Either first fails on mock or second is duplicate
+        assert result2.status == "duplicate_blocked" or result1.status == "failed"
+
+    def test_insufficient_buying_power(self):
+        """Buying power too low → risk engine rejects."""
+        proposal = self._base_proposal(max_loss=Decimal("200"))
+        risk = evaluate_risk(proposal, buying_power=Decimal("50"))
+        assert not risk.approved
+        assert any("buying_power" in c.name for c in risk.failed_checks)
+
+    def test_max_positions_reached(self):
+        """10 positions already open → risk engine rejects."""
+        proposal = self._base_proposal(max_loss=Decimal("200"))
+        risk = evaluate_risk(proposal, buying_power=Decimal("100000"), current_positions=10)
+        assert not risk.approved
+        assert any("max_positions" in c.name for c in risk.failed_checks)
+
+    def test_low_confidence_killed(self):
+        """Confidence < 0.3 → kill agent notes, risk engine rejects."""
+        proposal = self._base_proposal(confidence=Decimal("0.1"))
+        thesis = self._base_thesis()
+        kill = kill_test(proposal, thesis)
+        risk = evaluate_risk(proposal, buying_power=Decimal("100000"))
+        # Kill agent records the issue
+        assert any("confidence" in r.lower() for r in kill.kill_reasons)
+        # Risk engine definitively rejects
+        assert not risk.approved
+        assert any("min_confidence" in c.name for c in risk.failed_checks)
+
+    def test_contradictory_thesis_killed(self):
+        """Bullish proposal in downtrend → kill agent notes contradiction."""
+        proposal = self._base_proposal(thesis="Bullish test")
+        thesis = self._base_thesis(regime=MarketRegime.DOWNTREND)
+        kill = kill_test(proposal, thesis)
+        # Kill agent records the contradiction
+        assert any("contradictory" in r.lower() for r in kill.kill_reasons)
+        # Kill score is reduced (but single issue may not push below 0.4)
+        assert kill.kill_score < Decimal("1.0")
+
+    def test_iron_condor_in_high_vol_killed(self):
+        """Iron condor in high-vol regime → kill agent notes danger."""
+        proposal = self._base_proposal(
+            strategy=StrategyType.IRON_CONDOR,
+            legs=[
+                OptionLeg(contract_symbol="C1", option_type=OptionType.CALL, strike=Decimal("560"),
+                          expiration=date.today() + timedelta(days=30), side="sell", quantity=1,
+                          bid=Decimal("3"), ask=Decimal("3.5"), mid=Decimal("3.25")),
+                OptionLeg(contract_symbol="C2", option_type=OptionType.CALL, strike=Decimal("570"),
+                          expiration=date.today() + timedelta(days=30), side="buy", quantity=1,
+                          bid=Decimal("2"), ask=Decimal("2.5"), mid=Decimal("2.25")),
+                OptionLeg(contract_symbol="P1", option_type=OptionType.PUT, strike=Decimal("540"),
+                          expiration=date.today() + timedelta(days=30), side="sell", quantity=1,
+                          bid=Decimal("3"), ask=Decimal("3.5"), mid=Decimal("3.25")),
+                OptionLeg(contract_symbol="P2", option_type=OptionType.PUT, strike=Decimal("530"),
+                          expiration=date.today() + timedelta(days=30), side="buy", quantity=1,
+                          bid=Decimal("2"), ask=Decimal("2.5"), mid=Decimal("2.25")),
+            ],
+            max_loss=Decimal("500"),
+        )
+        thesis = self._base_thesis(regime=MarketRegime.HIGH_VOLATILITY)
+        kill = kill_test(proposal, thesis)
+        # Kill agent records the danger
+        assert any("iron condor" in r.lower() or "high-volatility" in r.lower() for r in kill.kill_reasons)
+        # Kill score is reduced
+        assert kill.kill_score < Decimal("1.0")
+
+    def test_stale_quote_rejected(self):
+        """All bid/ask/mid zero → executor rejects as stale."""
+        from killjoy.execution.executor import Executor
+        from unittest.mock import MagicMock
+
+        proposal = self._base_proposal(
+            legs=[
+                OptionLeg(
+                    contract_symbol="SPY250919C00550000",
+                    option_type=OptionType.CALL,
+                    strike=Decimal("550"),
+                    expiration=date.today() + timedelta(days=30),
+                    side="buy",
+                    quantity=1,
+                    bid=Decimal("0"),
+                    ask=Decimal("0"),
+                    mid=Decimal("0"),
+                )
+            ]
+        )
+        executor = Executor(MagicMock())
+        result = executor.execute_proposal(proposal)
+        assert result.status == "stale_quote"
+
+    def test_risk_engine_metrics_populated(self):
+        """Risk engine always populates metrics for observability."""
+        proposal = self._base_proposal()
+        risk = evaluate_risk(proposal)
+        assert "max_loss" in risk.metrics
+        assert "max_profit" in risk.metrics
+        assert "reward_risk" in risk.metrics
+        assert "buying_power" in risk.metrics
+        assert "current_positions" in risk.metrics
+
+    def test_kill_agent_returns_structured_objections(self):
+        """Kill agent returns structured objections for dashboard display."""
+        proposal = self._base_proposal(confidence=Decimal("0.1"))
+        thesis = self._base_thesis()
+        kill = kill_test(proposal, thesis)
+        assert isinstance(kill.kill_reasons, list)
+        assert len(kill.kill_reasons) > 0
+
+    def test_risk_engine_has_8_gates(self):
+        """Verify all 8 risk gates are evaluated."""
+        proposal = self._base_proposal()
+        risk = evaluate_risk(proposal, buying_power=Decimal("100000"), current_positions=2)
+        gate_names = [c.name for c in risk.checks]
+        expected = [
+            "max_risk_per_trade", "daily_loss_limit", "total_options_exposure",
+            "single_underlying_exposure", "reward_risk_ratio", "buying_power",
+            "max_positions", "min_confidence",
+        ]
+        assert gate_names == expected

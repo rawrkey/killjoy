@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -34,7 +34,7 @@ class ParameterRecommendation(BaseModel):
     reason: str = Field(description="Why this change is recommended")
     evidence: str = Field(description="Evidence supporting this change")
     confidence: float = Field(ge=0, le=1, description="Confidence in recommendation")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ParameterManager:

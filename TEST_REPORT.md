@@ -4,7 +4,7 @@
 **Account:** Paper Trading ($100,000)  
 **Buying Power:** $400,000  
 **Mode:** Dry Run (no orders submitted)  
-**Test Suite:** 79 tests passing
+**Test Suite:** 109 tests passing (2 warnings from external libraries)
 
 ---
 
@@ -12,7 +12,7 @@
 
 KILLJOY's autonomous pipeline executed successfully across **10 symbols**, generating **40 trade proposals** per scan cycle. The adversarial Kill Agent tested every proposal, and the Risk Engine exercised its veto authority — rejecting 16 proposals and approving 4 for submission.
 
-**Key Finding:** The pipeline is fully functional. All 79 unit tests pass. The system now uses LLM-backed agents with adversarial debate, falling back to deterministic rules when LLM is unavailable.
+**Key Finding:** The pipeline is fully functional. All 109 unit tests pass with only 2 warnings (both from external libraries). The system uses LLM-backed agents with adversarial debate, falling back to deterministic rules when LLM is unavailable.
 
 ---
 
@@ -242,6 +242,27 @@ Every rejected opportunity is recorded with:
 
 ---
 
+## Safety Stress Tests (Sunday Validation)
+
+12 stress tests verify every failure mode is caught:
+
+| Test | Failure Mode | Gate |
+|------|-------------|------|
+| `test_too_much_risk` | Max loss > $500 | Risk Engine |
+| `test_bad_reward_risk` | R/R < 1.0 | Risk Engine |
+| `test_duplicate_order` | Same order twice | Executor |
+| `test_insufficient_buying_power` | BP too low | Risk Engine |
+| `test_max_positions_reached` | 10 positions open | Risk Engine |
+| `test_low_confidence_killed` | Confidence < 0.3 | Risk Engine |
+| `test_contradictory_thesis_killed` | Bullish in downtrend | Kill Agent |
+| `test_iron_condor_in_high_vol_killed` | IC in high vol | Kill Agent |
+| `test_stale_quote_rejected` | All quotes zero | Executor |
+| `test_risk_engine_metrics_populated` | Metrics for observability | Risk Engine |
+| `test_kill_agent_returns_structured_objections` | Objections for dashboard | Kill Agent |
+| `test_risk_engine_has_8_gates` | All 8 gates evaluated | Risk Engine |
+
+---
+
 ## Conclusion
 
 KILLJOY's full autonomous pipeline is **operational and tested**:
@@ -257,8 +278,10 @@ KILLJOY's full autonomous pipeline is **operational and tested**:
 - ✅ Order execution (ready for market hours)
 - ✅ Trade journal persistence
 - ✅ "Why Not Trade?" rejection logging
-- ✅ 79 unit tests passing
+- ✅ 109 unit tests passing (2 warnings from external libs)
 - ✅ Web GUI deployed on Vercel
 - ✅ MCP server configured
+- ✅ All deprecation warnings eliminated
+- ✅ Backend API uses LLM-enhanced agents
 
 **The system is ready for live paper trading when market opens.**

@@ -143,6 +143,7 @@ def evaluate_risk(
     return RiskDecision(
         proposal_id=proposal.id,
         approved=approved,
+        checks=checks,
         failed_checks=failed,
         reasons=reasons,
         metrics=metrics,

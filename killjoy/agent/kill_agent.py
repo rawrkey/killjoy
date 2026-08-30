@@ -10,10 +10,12 @@ uses this module's 9 deterministic checks as the final kill decision.
 
 Kill Score Semantics:
   0.0 - 0.2: KILL — Major red flags, trade should not proceed
-  0.2 - 0.4: WEAK — Significant concerns, likely reject
-  0.4 - 0.6: MARGINAL — Some concerns, proceed with caution
+  0.2 - 0.4: WEAK — Significant concerns, rejected by threshold
+  0.4 - 0.6: MARGINAL — Some concerns, passes threshold but risky
   0.6 - 0.8: DECENT — Minor concerns, acceptable
   0.8 - 1.0: STRONG — Few or no concerns, should proceed
+
+Threshold: 0.40 — trades below this score are killed.
 """
 
 from __future__ import annotations

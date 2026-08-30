@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +45,9 @@ class EventLog:
         - postmortem_completed
         - rejection_recorded
         """
+        now = datetime.now(timezone.utc)
         event = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now.isoformat(),
             "event_type": event_type,
             "run_id": run_id,
             "symbol": symbol,
@@ -54,7 +55,7 @@ class EventLog:
         }
 
         # Append to daily event file
-        day = datetime.utcnow().strftime("%Y-%m-%d")
+        day = now.strftime("%Y-%m-%d")
         filepath = self._dir / f"events_{day}.jsonl"
 
         try:

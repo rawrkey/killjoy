@@ -133,7 +133,7 @@ class DecisionReceiptManager:
                 "risk_rejected": 0,
                 "avg_kill_score": 0,
                 "avg_debate_rounds": 0,
-                "mcp_tools_used": [],
+                "recent_receipts": [],
             }
 
         executed = [r for r in receipts if r.final_decision == "EXECUTE"]
