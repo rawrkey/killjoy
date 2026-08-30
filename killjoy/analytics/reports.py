@@ -156,3 +156,15 @@ def get_latest_report() -> dict[str, Any] | None:
     except Exception as e:
         logger.warning("Failed to load latest report: %s", e)
         return None
+
+
+def get_all_reports() -> list[dict[str, Any]]:
+    """Load all timestamped reports from disk, newest first."""
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    reports = []
+    for f in sorted(REPORTS_DIR.glob("report-*.json"), reverse=True):
+        try:
+            reports.append(json.loads(f.read_text()))
+        except Exception:
+            pass
+    return reports

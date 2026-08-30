@@ -328,6 +328,7 @@ export const api = {
   disagreement: () => apiFetch<DisagreementSummary>('/api/disagreement'),
   judgeMode: () => apiFetch<JudgeModeData>('/api/judge-mode'),
   lastReport: () => apiFetch<{ report: any; message?: string }>('/api/reports/last'),
+  allReports: () => apiFetch<{ reports: any[]; count: number }>('/api/reports/all'),
   autonomousStatus: () => apiFetch<{ enabled: boolean }>('/api/autonomous/status'),
   autonomousToggle: () => apiFetch<{ enabled: boolean }>('/api/autonomous/toggle', { method: 'POST' }),
 };

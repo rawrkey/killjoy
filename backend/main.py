@@ -534,6 +534,14 @@ def report_last():
     return {"report": report}
 
 
+@app.get("/api/reports/all")
+def report_all():
+    """Get all cycle reports."""
+    from killjoy.analytics.reports import get_all_reports
+    reports = get_all_reports()
+    return {"reports": reports, "count": len(reports)}
+
+
 @app.get("/api/disagreement")
 def disagreement():
     """Get agent disagreement analytics."""

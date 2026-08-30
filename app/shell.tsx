@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: '/positions', label: 'Positions', icon: '\u25B2' },
   { href: '/market', label: 'Market', icon: '\u25C6' },
   { href: '/trades', label: 'Trades', icon: '\u25B6' },
+  { href: '/reports', label: 'Reports', icon: '\u25C8' },
   { href: '/graveyard', label: 'Graveyard', icon: '\u2620' },
   { href: '/settings', label: 'Settings', icon: '\u2699' },
 ];
@@ -18,6 +19,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/positions': 'Positions',
   '/market': 'Market Analysis',
   '/trades': 'Trade Log',
+  '/reports': 'Cycle Reports',
   '/graveyard': 'Strategy Graveyard',
   '/settings': 'Settings',
 };

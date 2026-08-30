@@ -256,6 +256,8 @@ Or use the web dashboard at `http://localhost:3000`.
 | `/api/autonomous/status` | GET | Autonomous mode status |
 | `/api/autonomous/toggle` | POST | Toggle autonomous mode |
 | `/api/cron/run` | GET | Cron endpoint (market hours check) |
+| `/api/reports/last` | GET | Latest cycle report |
+| `/api/reports/all` | GET | All cycle reports |
 
 ---
 
@@ -264,9 +266,10 @@ Or use the web dashboard at `http://localhost:3000`.
 | Page | Description |
 | --- | --- |
 | **Dashboard** | Account overview, autonomous mode toggle, performance, kill precision, counterfactual, agent disagreement |
-| **Market** | LLM analysis, correlation matrix, paper/live cycle buttons (disabled outside market hours) |
+| **Market** | LLM analysis, correlation matrix, paper/live cycle buttons, latest cycle report (disabled outside market hours) |
 | **Trades** | Alpaca orders, trade journal, decision receipts, kill precision |
 | **Positions** | Open positions with live P&L |
+| **Reports** | All cycle reports — filterable by dry run vs live, expandable per-symbol breakdown |
 | **Judge Mode** | One-page hackathon overview with all key metrics |
 | **Graveyard** | Strategy lifecycle tracker — wins, losses, kill rates |
 | **Settings** | Connection config, MCP tools, risk parameters, strategy list |
