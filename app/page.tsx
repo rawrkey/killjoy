@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.check().then(r => setConnected(r.connected)).catch(e => setError(e.message));
+    api.check().then(r => setConnected(r.connected)).catch(() => {});
     api.account().then(setAccount).catch(() => {});
     api.positions().then(setPositions).catch(() => {});
     api.performance().then(setPerformance).catch(() => {});
@@ -240,7 +240,7 @@ export default function Dashboard() {
                     <tr><th>Symbol</th><th>Side</th><th>P&L</th></tr>
                   </thead>
                   <tbody>
-                    {positions.positions.map((p, i) => (
+                    {(positions?.positions ?? []).map((p, i) => (
                       <tr key={i}>
                         <td><strong>{p.symbol}</strong></td>
                         <td><span className={`badge ${p.side === 'long' ? 'badge-green' : 'badge-red'}`}>{p.side}</span></td>
@@ -271,7 +271,7 @@ export default function Dashboard() {
                   <tr><th>Event</th><th>Symbol</th><th>Time</th></tr>
                 </thead>
                 <tbody>
-                  {events.events.slice(0, 8).map((e, i) => (
+                  {(events?.events ?? []).slice(0, 8).map((e, i) => (
                     <tr key={i}>
                       <td>
                         <span className={`badge ${

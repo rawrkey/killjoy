@@ -73,7 +73,7 @@ export default function MarketPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.analyses.map((a, i) => (
+                  {(data.analyses ?? []).map((a, i) => (
                     <tr key={i}>
                       <td><strong>{a.symbol}</strong></td>
                       <td>
@@ -103,7 +103,7 @@ export default function MarketPage() {
       </div>
 
       {/* Correlation Matrix */}
-      {correlation && correlation.matrix.symbols.length > 0 && (
+      {correlation?.matrix?.symbols && correlation.matrix.symbols.length > 0 && (
         <div className="card mb-24">
           <div className="card-header">
             <span className="card-title">Portfolio Correlation</span>
@@ -123,10 +123,10 @@ export default function MarketPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {correlation.matrix.symbols.map((row, ri) => (
+                  {(correlation.matrix.symbols ?? []).map((row, ri) => (
                     <tr key={ri}>
                       <td><strong className="mono">{row}</strong></td>
-                      {correlation.matrix.matrix[ri].map((val, ci) => (
+                      {(correlation.matrix.matrix[ri] ?? []).map((val, ci) => (
                         <td key={ci} className="mono" style={{
                           fontSize: 12,
                           color: ri === ci ? 'var(--text-muted)' :
