@@ -128,17 +128,7 @@ class LLMProvider:
             # Try to parse JSON from content
             parsed = {}
             if content:
-                try:
-                    parsed = json.loads(content)
-                except (json.JSONDecodeError, ValueError):
-                    # Try extracting from markdown code blocks
-                    import re
-                    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', content, re.DOTALL)
-                    if m:
-                        try:
-                            parsed = json.loads(m.group(1))
-                        except (json.JSONDecodeError, ValueError):
-                            pass
+                parsed = self._extract_json(content)
 
             return LLMResponse(
                 content=content,
@@ -151,6 +141,43 @@ class LLMProvider:
         except Exception as e:
             logger.warning("LLM chat failed: %s", e)
             return LLMResponse(error=str(e))
+
+    @staticmethod
+    def _extract_json(text: str) -> dict:
+        """Extract JSON from LLM text output, trying multiple strategies."""
+        import re
+
+        # Strategy 1: Direct parse
+        try:
+            return json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Strategy 2: Extract from markdown code blocks
+        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Strategy 3: Find first { ... } block (greedy to capture nested)
+        depth = 0
+        start = -1
+        for i, ch in enumerate(text):
+            if ch == '{':
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except (json.JSONDecodeError, ValueError):
+                        start = -1  # keep looking
+
+        return {}
 
     def chat_structured(
         self,
