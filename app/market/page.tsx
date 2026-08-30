@@ -10,6 +10,7 @@ export default function MarketPage() {
   const [cycleResult, setCycleResult] = useState<PaperCycleResponse | null>(null);
   const [correlation, setCorrelation] = useState<CorrelationResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [liveLoading, setLiveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,6 +32,19 @@ export default function MarketPage() {
     setLoading(false);
   };
 
+  const runLiveCycle = async () => {
+    if (!confirm('This will submit REAL paper orders to Alpaca. Continue?')) return;
+    setLiveLoading(true);
+    setError(null);
+    try {
+      const result = await api.liveCycle();
+      setCycleResult(result);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLiveLoading(false);
+  };
+
   return (
     <>
       {error && <div className="alert alert-error">{error}</div>}
@@ -43,6 +57,9 @@ export default function MarketPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" onClick={runCycle} disabled={loading}>
               {loading ? <><span className="spinner" /> Running...</> : 'Run Paper Cycle'}
+            </button>
+            <button className="btn btn-danger" onClick={runLiveCycle} disabled={liveLoading}>
+              {liveLoading ? <><span className="spinner" /> Executing...</> : 'Run LIVE Cycle'}
             </button>
             <button className="btn btn-secondary" onClick={() => api.analyze().then(setData)}>
               Refresh Analysis

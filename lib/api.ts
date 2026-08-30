@@ -298,6 +298,7 @@ export const api = {
   orders: () => apiFetch<OrdersResponse>('/api/orders'),
   analyze: () => apiFetch<AnalyzeResponse>('/api/analyze'),
   paperCycle: () => apiFetch<PaperCycleResponse>('/api/paper-cycle'),
+  liveCycle: () => apiFetch<PaperCycleResponse>('/api/live-cycle'),
   journal: () => apiFetch<JournalResponse>('/api/journal'),
   performance: () => apiFetch<PerformanceSummary>('/api/performance'),
   rejections: () => apiFetch<RejectionAnalytics>('/api/rejections'),

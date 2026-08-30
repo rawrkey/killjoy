@@ -265,6 +265,73 @@ def paper_cycle():
     return {"results": results}
 
 
+@app.get("/api/live-cycle")
+def live_cycle():
+    """Run one LIVE paper cycle — orders will be submitted to Alpaca."""
+    settings = get_settings()
+    from killjoy.alpaca.trading import AlpacaTradingClient
+    from killjoy.alpaca.market_data import MarketDataClient
+    from killjoy.alpaca.options_data import OptionsDataClient
+    from killjoy.portfolio.manager import PortfolioManager
+    from killjoy.database.repository import TradeJournal
+    from killjoy.autonomy.scheduler import KilljoyScheduler
+    from killjoy.execution.executor import Executor
+    from killjoy.agent.models import AccountSnapshot, PositionSnapshot
+    from killjoy.llm.provider import LLMProvider
+
+    trading_client = AlpacaTradingClient.from_settings(settings)
+    account = trading_client.get_account()
+    positions = trading_client.get_positions()
+
+    market_data = MarketDataClient(settings)
+    options_data = OptionsDataClient(settings)
+    portfolio = PortfolioManager()
+
+    llm = LLMProvider(
+        api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
+        base_url=settings.killjoy_llm_base_url,
+        model=settings.killjoy_llm_model,
+        temperature=settings.killjoy_llm_temperature,
+        max_tokens=settings.killjoy_llm_max_tokens,
+    )
+
+    acc_snap = AccountSnapshot(
+        status=getattr(account, "status", ""),
+        buying_power=Decimal(str(getattr(account, "buying_power", 0))),
+        portfolio_value=Decimal(str(getattr(account, "portfolio_value", 0))),
+    )
+    pos_snaps = [
+        PositionSnapshot(
+            symbol=getattr(p, "symbol", ""),
+            qty=Decimal(str(getattr(p, "qty", 0))),
+            side=str(getattr(p, "side", "")),
+            avg_entry_price=Decimal(str(getattr(p, "avg_entry_price", 0))),
+            current_price=Decimal(str(getattr(p, "current_price", 0))),
+            unrealized_pl=Decimal(str(getattr(p, "unrealized_pl", 0))),
+            unrealized_plpc=Decimal(str(getattr(p, "unrealized_plpc", 0))),
+        )
+        for p in positions
+    ]
+    portfolio.update(acc_snap, pos_snaps)
+
+    journal = TradeJournal()
+    executor = Executor(trading_client._client)
+    scheduler = KilljoyScheduler(
+        market_data=market_data,
+        options_data=options_data,
+        executor=executor,
+        portfolio=portfolio,
+        journal=journal,
+        llm=llm,
+        dry_run=False,
+    )
+
+    results = scheduler.run_once()
+    results["llm"] = "active" if llm.is_available else "deterministic"
+    results["mode"] = "LIVE"
+    return {"results": results}
+
+
 @app.get("/api/journal")
 def journal():
     """Get trade journal entries."""
