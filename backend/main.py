@@ -21,6 +21,9 @@ from killjoy.config.settings import Settings, get_settings
 
 logger = logging.getLogger("killjoy.api")
 
+# ── Autonomous mode state ────────────────────────────────────────────────────
+_autonomous_enabled = False
+
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -648,3 +651,61 @@ def judge_mode():
             "avg_kill_score": rejection_analytics.get("avg_kill_score", 0),
         },
     }
+
+
+# ── Autonomous Mode ──────────────────────────────────────────────────────────
+
+@app.get("/api/autonomous/status")
+def autonomous_status():
+    """Check if autonomous mode is enabled."""
+    return {"enabled": _autonomous_enabled}
+
+
+@app.post("/api/autonomous/toggle")
+def autonomous_toggle():
+    """Enable or disable autonomous trading."""
+    global _autonomous_enabled
+    _autonomous_enabled = not _autonomous_enabled
+    logger.info("Autonomous mode %s", "ENABLED" if _autonomous_enabled else "DISABLED")
+    return {"enabled": _autonomous_enabled}
+
+
+@app.get("/api/cron/run")
+def cron_run():
+    """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
+
+    External cron services (cron-job.org, GitHub Actions) ping this every 15 min.
+    """
+    global _autonomous_enabled
+
+    if not _autonomous_enabled:
+        return {"skipped": True, "reason": "autonomous_disabled"}
+
+    # Check market hours (9:30 AM – 4:00 PM ET, Mon–Fri)
+    from datetime import datetime
+    import zoneinfo
+    try:
+        et = zoneinfo.ZoneInfo("America/New_York")
+    except Exception:
+        et = zoneinfo.ZoneInfo("US/Eastern")
+    now = datetime.now(et)
+
+    if now.weekday() >= 5:  # Saturday=5, Sunday=6
+        return {"skipped": True, "reason": "weekend", "day": now.strftime("%A")}
+
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+
+    if now < market_open:
+        return {"skipped": True, "reason": "before_market_open", "time": now.strftime("%H:%M ET")}
+    if now > market_close:
+        return {"skipped": True, "reason": "after_market_close", "time": now.strftime("%H:%M ET")}
+
+    # Market is open — run live cycle
+    logger.info("CRON: Running live cycle at %s ET", now.strftime("%H:%M"))
+    try:
+        result = live_cycle()
+        return {"skipped": False, "results": result.get("results", {})}
+    except Exception as e:
+        logger.error("CRON cycle failed: %s", e)
+        return {"skipped": False, "error": str(e)}

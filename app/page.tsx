@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [counterfactual, setCounterfactual] = useState<CounterfactualSummary | null>(null);
   const [precision, setPrecision] = useState<KillPrecisionSummary | null>(null);
   const [disagreement, setDisagreement] = useState<DisagreementSummary | null>(null);
+  const [autonomous, setAutonomous] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,7 +24,17 @@ export default function Dashboard() {
     api.counterfactual().then(setCounterfactual).catch(() => {});
     api.precision().then(setPrecision).catch(() => {});
     api.disagreement().then(setDisagreement).catch(() => {});
+    api.autonomousStatus().then(r => setAutonomous(r.enabled)).catch(() => {});
   }, []);
+
+  const toggleAutonomous = async () => {
+    try {
+      const r = await api.autonomousToggle();
+      setAutonomous(r.enabled);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
 
   return (
     <>
@@ -51,6 +62,38 @@ export default function Dashboard() {
         <div className="stat-card">
           <div className="stat-label">Kill Agent</div>
           <div className="stat-value" style={{ fontSize: 16, color: 'var(--purple)' }}>ADVERSARIAL</div>
+        </div>
+      </div>
+
+      {/* Autonomous Mode */}
+      <div className="card mb-24" style={{ borderColor: autonomous ? 'var(--green-border)' : 'var(--border)' }}>
+        <div className="card-header">
+          <span className="card-title">Autonomous Mode</span>
+          <span className={`badge ${autonomous ? 'badge-green' : 'badge-yellow'}`}>
+            {autonomous ? 'ACTIVE' : 'PAUSED'}
+          </span>
+        </div>
+        <div className="card-body">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                {autonomous
+                  ? 'Auto-trading every 15 min during market hours (9:30 AM – 4:00 PM ET)'
+                  : 'Click to enable auto-trading. Requires cron-job.org to ping every 15 min.'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {autonomous
+                  ? 'Auto-buys new positions, auto-sells at +50% profit / -20% loss / -10% trailing stop'
+                  : 'You can also close this tab — the cron job runs on its own'}
+              </div>
+            </div>
+            <button
+              className={`btn ${autonomous ? 'btn-danger' : 'btn-primary'}`}
+              onClick={toggleAutonomous}
+            >
+              {autonomous ? 'Stop Auto-Trading' : 'Start Auto-Trading'}
+            </button>
+          </div>
         </div>
       </div>
 

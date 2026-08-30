@@ -280,9 +280,9 @@ export interface JudgeModeData {
 
 // ── API client ───────────────────────────────────────────────────
 
-async function apiFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getApiBase();
-  const res = await fetch(`${base}${path}`, { headers: getHeaders() });
+  const res = await fetch(`${base}${path}`, { headers: getHeaders(), ...init });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `API error ${res.status}`);
@@ -325,4 +325,6 @@ export const api = {
   graveyard: () => apiFetch<GraveyardSummary>('/api/graveyard'),
   disagreement: () => apiFetch<DisagreementSummary>('/api/disagreement'),
   judgeMode: () => apiFetch<JudgeModeData>('/api/judge-mode'),
+  autonomousStatus: () => apiFetch<{ enabled: boolean }>('/api/autonomous/status'),
+  autonomousToggle: () => apiFetch<{ enabled: boolean }>('/api/autonomous/toggle', { method: 'POST' }),
 };
