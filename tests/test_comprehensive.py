@@ -494,7 +494,7 @@ class TestMonitoring:
             unrealized_pl=Decimal("100"),
             unrealized_plpc=Decimal("0.10"),
         )
-        action = evaluate_position(pos, days_held=5)
+        action, reason = evaluate_position(pos, days_held=5)
         assert action == PositionAction.HOLD
 
     def test_exit_losing_position(self):
@@ -505,7 +505,7 @@ class TestMonitoring:
             unrealized_pl=Decimal("-500"),
             unrealized_plpc=Decimal("-0.30"),
         )
-        action = evaluate_position(pos, days_held=5, max_loss_pct=Decimal("0.20"))
+        action, reason = evaluate_position(pos, days_held=5, max_loss_pct=Decimal("0.20"))
         assert action == PositionAction.EXIT
 
 

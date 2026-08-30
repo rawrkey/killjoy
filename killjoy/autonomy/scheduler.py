@@ -107,9 +107,52 @@ class KilljoyScheduler:
             "rejections_recorded": 0,
         }
 
-        # 1. Monitor existing positions
+        # 1. Monitor existing positions — evaluate for exit
         open_trades = self._journal.get_open_trades()
         results["positions_monitored"] = len(open_trades)
+        results["positions_closed"] = 0
+
+        for trade in open_trades:
+            try:
+                symbol = trade.get("underlying", "")
+                if not symbol:
+                    continue
+
+                # Find matching position from portfolio
+                pos_snap = None
+                for p in self._portfolio._positions:
+                    if p.symbol == symbol:
+                        pos_snap = p
+                        break
+
+                if pos_snap is None:
+                    continue
+
+                from killjoy.monitoring.position_monitor import evaluate_position
+                action, reason = evaluate_position(pos_snap)
+
+                if action == "exit":
+                    logger.info("AUTO-SELL %s: %s", symbol, reason)
+                    self._event_log.log("exit_signal", run_id, symbol=symbol, data={"reason": reason})
+
+                    if not self._dry_run and self._executor:
+                        order_result = self._executor.close_position(symbol)
+                        if order_result.status != "failed":
+                            # Record exit in journal
+                            realized_pnl = float(pos_snap.unrealized_pl)
+                            self._journal.record_exit(trade.get("id", ""), realized_pnl, "closed", order_result.order_id)
+                            results["positions_closed"] += 1
+                            self._event_log.log("position_closed", run_id, symbol=symbol, data={
+                                "pnl": realized_pnl,
+                                "reason": reason,
+                                "order_id": order_result.order_id,
+                            })
+                            logger.info("CLOSED %s: P&L $%.2f — %s", symbol, realized_pnl, reason)
+                    else:
+                        logger.info("DRY RUN: Would close %s — %s", symbol, reason)
+                        results["positions_closed"] += 1
+            except Exception as e:
+                logger.warning("Error evaluating position %s: %s", symbol, e)
 
         # 2. Scan each underlying
         for symbol in self._universe:

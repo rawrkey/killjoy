@@ -19,30 +19,43 @@ def evaluate_position(
     position: PositionSnapshot,
     proposal: TradeProposal | None = None,
     max_loss_pct: Decimal = Decimal("0.20"),
+    take_profit_pct: Decimal = Decimal("0.50"),
+    trailing_stop_pct: Decimal = Decimal("0.10"),
     max_days_held: int = 45,
     days_held: int = 0,
-) -> str:
+    high_water_mark: Decimal | None = None,
+) -> tuple[str, str]:
     """Evaluate whether to hold or exit a position.
 
-    Returns PositionAction.HOLD or PositionAction.EXIT.
+    Returns (PositionAction, reason).
     """
     reasons = []
 
-    # Check unrealized P&L percentage
-    if position.avg_entry_price > 0 and position.unrealized_plpc != 0:
-        loss_pct = abs(position.unrealized_plpc) if position.unrealized_pl < 0 else Decimal("0")
-        if position.unrealized_pl < 0 and loss_pct > max_loss_pct:
-            reasons.append(f"Loss exceeds {max_loss_pct:.0%}: {position.unrealized_plpc:.1%}")
+    # Take-profit: close if up >= take_profit_pct
+    if position.unrealized_plpc > 0 and position.unrealized_plpc >= take_profit_pct:
+        reasons.append(f"Take-profit hit: {position.unrealized_plpc:.1%} >= {take_profit_pct:.0%}")
 
-    # Check time held
+    # Stop-loss: close if down >= max_loss_pct
+    if position.unrealized_pl < 0 and position.unrealized_plpc != 0:
+        loss_pct = abs(position.unrealized_plpc)
+        if loss_pct >= max_loss_pct:
+            reasons.append(f"Stop-loss hit: {loss_pct:.1%} >= {max_loss_pct:.0%}")
+
+    # Trailing stop: if position was up more and now dropped from peak
+    if high_water_mark is not None and high_water_mark > 0 and position.unrealized_plpc < high_water_mark:
+        drop_from_peak = high_water_mark - position.unrealized_plpc
+        if drop_from_peak >= trailing_stop_pct:
+            reasons.append(f"Trailing stop: dropped {drop_from_peak:.1%} from peak {high_water_mark:.1%}")
+
+    # Time held
     if days_held > max_days_held:
-        reasons.append(f"Position held {days_held} days (max {max_days_held})")
+        reasons.append(f"Held {days_held} days (max {max_days_held})")
 
     if reasons:
         logger.info("EXIT signal for %s: %s", position.symbol, "; ".join(reasons))
-        return PositionAction.EXIT
+        return PositionAction.EXIT, "; ".join(reasons)
 
-    return PositionAction.HOLD
+    return PositionAction.HOLD, ""
 
 
 def get_position_summary(positions: list[PositionSnapshot]) -> dict:
