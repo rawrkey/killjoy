@@ -7,8 +7,11 @@ An autonomous AI options trading agent that uses adversarial AI debate to challe
 **Built for the Alpaca AI Hackathon**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-97_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-110_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
 [![Paper Only](https://img.shields.io/badge/mode-paper_only-FFD600?style=flat&logo=shield&logoColor=black)](#safety)
+
+**Live Demo:** [killjoy-three.vercel.app](https://killjoy-three.vercel.app)
+**Backend API:** [killjoy-txgw.onrender.com](https://killjoy-txgw.onrender.com)
 
 ---
 
@@ -25,6 +28,31 @@ KILLJOY runs a 9-stage autonomous pipeline where multiple AI agents analyze, pro
 7. **Portfolio Check** — Concentration and exposure limits
 8. **Risk Engine** — 8 deterministic gates with final veto authority
 9. **Alpaca Execution** — Paper order submission via Alpaca
+
+### Auto-Sell
+
+Every cycle also monitors existing positions and auto-sells when thresholds are hit:
+
+| Trigger | Threshold | Description |
+| --- | --- | --- |
+| Take-Profit | +50% | Close winning positions automatically |
+| Stop-Loss | -20% | Cut losses before they deepen |
+| Trailing Stop | -10% from peak | Protect profits from reversal |
+| Time Exit | 45 days | Close stale positions |
+
+---
+
+## Autonomous Mode
+
+KILLJOY can run fully autonomously — no browser tab needed.
+
+1. **Enable on Dashboard** — Click "Start Auto-Trading" during market hours
+2. **Cron job pings backend** every 15 minutes via cron-job.org
+3. **Backend checks market hours** — only runs Mon-Fri 9:30 AM – 4:00 PM ET
+4. **Each cycle**: closes winners/losers → scans for new entries → submits orders
+5. **Disable anytime** — Click "Stop Auto-Trading" or disable the cron job
+
+The "Run LIVE Cycle" and "Start Auto-Trading" buttons are **disabled outside market hours** to prevent accidental trades.
 
 ---
 
@@ -63,34 +91,25 @@ SCORE: 0.42 (MARGINAL) — REJECTED
 
 ---
 
-## LLM Architecture
+## Analytics Dashboard
 
-KILLJOY uses a hybrid architecture where deterministic logic provides the safety foundation and LLM reasoning adds qualitative intelligence.
+### Kill Precision
+Tracks how accurate the Kill Agent is — what percentage of killed trades would have lost, and what percentage of approved trades actually won.
 
-### How It Works
+### Counterfactual Portfolio
+Simulates "what if we submitted rejected trades?" — tracks simulated P&L of the trades the Kill Agent blocked.
 
-Each agent has two files:
+### Decision Receipts
+Full audit trail for every trade decision — which agents approved, which disagreed, kill score, risk check results, and outcome.
 
-- **`analyst.py`** / **`kill_agent.py`** / **`strategy_agent.py`** — Deterministic baseline. Pure rule-based logic that always runs. This is the safety fallback.
-- **`llm_analyst.py`** / **`llm_kill.py`** / **`llm_strategy.py`** — LLM wrapper. Calls the deterministic version first, then enhances with AI reasoning.
+### Strategy Graveyard
+Tracks every strategy's lifecycle — wins, losses, current kill rate, and average P&L. Shows which strategies are working and which are dead.
 
-The scheduler imports only the LLM versions. Each follows the same pattern:
+### Agent Disagreement
+Measures when the analyst, strategy agent, and kill agent disagree. High disagreement = high uncertainty.
 
-1. Call deterministic version to get quantitative baseline
-2. If LLM is available, serialize features and get structured AI response
-3. Merge: deterministic data stays primary, AI adds qualitative reasoning
-4. If LLM fails, return deterministic result unchanged
-
-### Why This Architecture
-
-- The LLM **cannot bypass safety** — deterministic gates have final veto
-- The LLM **can reason** — it explains why, not just what
-- **Fallback is graceful** — if LLM fails, deterministic rules continue
-- **Everything is structured** — Pydantic schemas ensure valid outputs
-
-### Supported Providers
-
-Any OpenAI-compatible endpoint works: OpenAI, OmniRouter, Ollama, vLLM, LiteLLM.
+### Judge Mode
+One-page hackathon overview — shows all key metrics, pipeline status, and agent performance at a glance.
 
 ---
 
@@ -129,23 +148,50 @@ Each strategy filters by regime, selects optimal DTE (7-45 days), checks liquidi
 
 ---
 
-## "Why Not Trade?" Analytics
+## LLM Architecture
 
-Every rejected opportunity is recorded with full reasoning:
+KILLJOY uses a hybrid architecture where deterministic logic provides the safety foundation and LLM reasoning adds qualitative intelligence.
 
-```json
-{
-  "total_analyzed": 100,
-  "trades_executed": 7,
-  "trades_rejected": 93,
-  "top_rejection_reasons": {
-    "kill_agent": 45,
-    "portfolio": 28,
-    "risk_engine": 20
-  },
-  "avg_kill_score": 0.34
-}
-```
+Each agent has two files:
+
+- **`analyst.py`** / **`kill_agent.py`** / **`strategy_agent.py`** — Deterministic baseline. Pure rule-based logic that always runs. This is the safety fallback.
+- **`llm_analyst.py`** / **`llm_kill.py`** / **`llm_strategy.py`** — LLM wrapper. Calls the deterministic version first, then enhances with AI reasoning.
+
+1. Call deterministic version to get quantitative baseline
+2. If LLM is available, serialize features and get structured AI response
+3. Merge: deterministic data stays primary, AI adds qualitative reasoning
+4. If LLM fails, return deterministic result unchanged
+
+The LLM **cannot bypass safety** — deterministic gates have final veto.
+
+### Supported Providers
+
+Any OpenAI-compatible endpoint works: OpenAI, OmniRouter, Ollama, vLLM, LiteLLM.
+
+---
+
+## Deployment
+
+### Backend (Render)
+
+1. Push to GitHub
+2. Connect repo to [Render](https://render.com)
+3. Auto-deploys on push (free tier)
+
+### Frontend (Vercel)
+
+1. Push to GitHub
+2. Connect repo to [Vercel](https://vercel.com)
+3. Set environment variable: `NEXT_PUBLIC_API_URL=https://killjoy-txgw.onrender.com`
+4. Auto-deploys on push
+
+### Autonomous Mode (cron-job.org)
+
+1. Create free account at [cron-job.org](https://cron-job.org)
+2. Create cron job:
+   - URL: `https://killjoy-txgw.onrender.com/api/cron/run`
+   - Schedule: `*/15 * * * *` (every 15 minutes)
+3. Click "Start Auto-Trading" on the dashboard
 
 ---
 
@@ -186,43 +232,47 @@ python main.py --paper-cycle    # One complete decision cycle (dry run)
 python main.py --autonomous     # Autonomous trading loop
 ```
 
+Or use the web dashboard at `http://localhost:3000`.
+
 ---
 
-## CLI Commands
+## API Endpoints
 
-| Command | Description |
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/api/health` | GET | Health check |
+| `/api/check` | GET | Alpaca connectivity |
+| `/api/account` | GET | Account info |
+| `/api/positions` | GET | Open positions |
+| `/api/analyze` | GET | LLM market analysis |
+| `/api/paper-cycle` | GET | Dry-run cycle (no orders) |
+| `/api/live-cycle` | GET | Live cycle (submits orders) |
+| `/api/performance` | GET | Win rate, P&L, drawdown |
+| `/api/journal` | GET | Trade journal |
+| `/api/rejections` | GET | Rejection analytics |
+| `/api/counterfactual` | GET | Counterfactual portfolio |
+| `/api/precision` | GET | Kill precision metrics |
+| `/api/receipts` | GET | Decision receipts |
+| `/api/graveyard` | GET | Strategy graveyard |
+| `/api/disagreement` | GET | Agent disagreement |
+| `/api/judge-mode` | GET | Judge mode overview |
+| `/api/autonomous/status` | GET | Autonomous mode status |
+| `/api/autonomous/toggle` | POST | Toggle autonomous mode |
+| `/api/cron/run` | GET | Cron endpoint (market hours check) |
+
+---
+
+## Dashboard Pages
+
+| Page | Description |
 | --- | --- |
-| `--check` | Verify Alpaca paper connectivity |
-| `--status` | Show account status and positions |
-| `--analyze` | Run LLM-enhanced market analysis |
-| `--paper-cycle` | Execute one complete decision cycle (dry run) |
-| `--autonomous` | Run autonomous trading loop |
-| `--interval N` | Set scan interval in seconds (default: 30) |
-
----
-
-## Dashboard
-
-The web dashboard provides real-time visibility into the trading system.
-
-- **Dashboard** — Account overview, performance metrics, recent activity
-- **Positions** — Open positions with live P&L
-- **Market** — LLM analysis, correlation matrix, paper cycle results
-- **Trades** — Alpaca orders, trade journal, rejection analytics
-- **Settings** — Connection config, live risk parameters, strategy list
-
-Start the backend and frontend (both from project root):
-
-```bash
-# Terminal 1: Backend API
-cd backend && uvicorn main:app --reload
-
-# Terminal 2: Frontend (from project root)
-npm install
-npm run dev
-```
-
-The dashboard runs at `http://localhost:3000`.
+| **Dashboard** | Account overview, autonomous mode toggle, performance, kill precision, counterfactual, agent disagreement |
+| **Market** | LLM analysis, correlation matrix, paper/live cycle buttons (disabled outside market hours) |
+| **Trades** | Alpaca orders, trade journal, decision receipts, kill precision |
+| **Positions** | Open positions with live P&L |
+| **Judge Mode** | One-page hackathon overview with all key metrics |
+| **Graveyard** | Strategy lifecycle tracker — wins, losses, kill rates |
+| **Settings** | Connection config, MCP tools, risk parameters, strategy list |
 
 ---
 
@@ -250,7 +300,7 @@ killjoy/
 │   ├── options_data.py       Options chain and snapshots
 │   └── status.py             Connection status
 ├── autonomy/               Autonomous Scheduler
-│   └── scheduler.py          Main trading loop
+│   └── scheduler.py          Main trading loop with auto-sell
 ├── strategies/             Options Strategies
 │   ├── base.py               Strategy base class
 │   ├── long_call.py          Long Call
@@ -272,13 +322,18 @@ killjoy/
 │   ├── performance.py        P&L, win rate, Sharpe
 │   ├── events.py             JSONL audit log
 │   ├── correlation.py        Cross-asset correlation
-│   └── params.py             Parameter management
+│   ├── params.py             Parameter management
+│   ├── counterfactual.py     Counterfactual portfolio tracker
+│   ├── kill_precision.py     Kill precision analytics
+│   ├── graveyard.py          Strategy graveyard lifecycle
+│   ├── disagreement.py       Agent disagreement scorer
+│   └── receipts.py           Decision receipt manager
 ├── portfolio/              Portfolio Management
 │   └── manager.py            Portfolio state and evaluation
 ├── execution/              Order Execution
-│   └── executor.py           Alpaca order submission
+│   └── executor.py           Alpaca order submission + close
 ├── monitoring/             Position Monitoring
-│   └── position_monitor.py   HOLD/EXIT decisions
+│   └── position_monitor.py   Take-profit / stop-loss / trailing stop
 ├── database/               Persistence
 │   ├── repository.py         Trade journal (JSON)
 │   └── rejected.py           "Why Not Trade?" log
@@ -288,7 +343,7 @@ killjoy/
 app/                        Next.js Frontend
 backend/                    FastAPI Backend
 .mcp/                       MCP Server Config
-tests/                      Test Suite (97 tests)
+tests/                      Test Suite (110 tests)
 main.py                     CLI Entry Point
 ```
 
@@ -300,7 +355,7 @@ main.py                     CLI Entry Point
 pytest tests/ -v
 ```
 
-97 tests covering config, Alpaca client, models, options, strategies, kill agent, risk engine, portfolio, position sizing, monitoring, journal, postmortem, LLM layer, and analytics.
+110 tests covering config, Alpaca client, models, options, strategies, kill agent, risk engine, portfolio, position sizing, monitoring, journal, postmortem, LLM layer, and analytics.
 
 ---
 
@@ -316,6 +371,7 @@ pytest tests/ -v
 | `KILLJOY_LLM_MODEL` | No | `gpt-4o-mini` | LLM model name |
 | `KILLJOY_LLM_TEMPERATURE` | No | `0.3` | LLM temperature |
 | `KILLJOY_LLM_MAX_TOKENS` | No | `2048` | Max tokens per request |
+| `NEXT_PUBLIC_API_URL` | No | — | Backend URL for Vercel frontend |
 
 ---
 
@@ -329,6 +385,8 @@ pytest tests/ -v
 - Schema validation on all LLM outputs
 - No live credentials in configuration
 - Credentials never logged or persisted
+- LIVE buttons disabled outside market hours (Mon-Fri 9:30 AM – 4:00 PM ET)
+- Autonomous mode requires explicit enable + cron job setup
 
 ---
 
