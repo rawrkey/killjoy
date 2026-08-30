@@ -7,7 +7,7 @@ An autonomous AI options trading agent that uses adversarial AI debate to challe
 **Built for the Alpaca AI Hackathon**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-113_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-115_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
 [![Paper Only](https://img.shields.io/badge/mode-paper_only-FFD600?style=flat&logo=shield&logoColor=black)](#safety)
 
 ---
@@ -17,14 +17,23 @@ An autonomous AI options trading agent that uses adversarial AI debate to challe
 KILLJOY runs a 9-stage autonomous pipeline where multiple AI agents analyze, propose, challenge, and validate every trade:
 
 1. **Market Data** — Real-time quotes and options chains from Alpaca
-2. **LLM Market Analyst** — AI interprets momentum, regime, and volatility
-3. **LLM Strategy Agent** — AI selects the best options strategy
+2. **Market Analyst** — Analyzes momentum, regime, and volatility (deterministic + optional LLM reasoning)
+3. **Strategy Agent** — Selects the best options strategy (rule-based + optional LLM enhancement)
 4. **Trade Proposal** — Structured proposal with legs, Greeks, and R/R
-5. **Kill Agent** — AI adversarially attacks the proposal (tries to kill it)
+5. **Kill Agent** — Adversarially attacks the proposal (rule-based + optional LLM debate)
 6. **Adversarial Debate** — Trader and Kill Agent argue back and forth
 7. **Portfolio Check** — Concentration and exposure limits
 8. **Risk Engine** — 8 deterministic gates with final veto authority
 9. **Alpaca Execution** — Paper order submission via Alpaca
+
+### Modes
+
+| Mode | Description |
+| --- | --- |
+| **Deterministic** (default) | Rule-based agents with quantitative analysis. Fast, reliable, no API costs. |
+| **LLM-Enhanced** (optional) | Add an OpenRouter API key for natural language reasoning on top of the same agents. |
+
+The system is designed to work fully in deterministic mode. The LLM is an optional layer that adds natural language thesis generation and adversarial debate — the underlying trade logic is identical.
 
 ### Auto-Sell
 
@@ -56,6 +65,8 @@ The "Run LIVE Cycle" and "Start Auto-Trading" buttons are **disabled outside mar
 ## The Kill Agent
 
 The Kill Agent is KILLJOY's defining feature. It is an AI agent whose **sole purpose is to find reasons to reject every trade**. It actively tries to disprove the thesis and kill the proposal.
+
+In deterministic mode, the Kill Agent runs 6 adversarial checks (momentum reversal, IV crush, liquidity, thesis contradiction, risk/reward, and timing). With LLM enabled, it also generates natural language objections and engages in multi-round debate.
 
 ### Adversarial Debate Example
 
