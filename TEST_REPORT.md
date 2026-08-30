@@ -4,7 +4,7 @@
 **Account:** Paper Trading ($100,000)  
 **Buying Power:** $400,000  
 **Mode:** Dry Run (no orders submitted)  
-**Test Suite:** 109 tests passing (2 warnings from external libraries)
+**Test Suite:** 113 tests passing (2 warnings from external libraries)
 **Security:** Control secret auth on live endpoints
 
 ---
@@ -13,7 +13,7 @@
 
 KILLJOY's autonomous pipeline executed successfully across **10 symbols**, generating **40 trade proposals** per scan cycle. The adversarial Kill Agent tested every proposal, and the Risk Engine exercised its veto authority — rejecting 16 proposals and approving 4 for submission.
 
-**Key Finding:** The pipeline is fully functional. All 109 unit tests pass with only 2 warnings (both from external libraries). The system uses LLM-backed agents with adversarial debate, falling back to deterministic rules when LLM is unavailable.
+**Key Finding:** The pipeline is fully functional. All 113 unit tests pass with only 2 warnings (both from external libraries). The system uses LLM-backed agents with adversarial debate, falling back to deterministic rules when LLM is unavailable.
 
 ### Security Hardening
 - Live-cycle, autonomous toggle, and cron endpoints now require `KILLJOY_CONTROL_SECRET` header

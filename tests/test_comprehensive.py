@@ -825,3 +825,65 @@ class TestSafetyStress:
             "max_positions", "min_confidence",
         ]
         assert gate_names == expected
+
+
+# ---------------------------------------------------------------------------
+# Strategy Graveyard Tests
+# ---------------------------------------------------------------------------
+
+class TestGraveyard:
+    def test_record_win_updates_stats(self, tmp_path):
+        """Graveyard correctly records a winning trade."""
+        from killjoy.analytics.graveyard import StrategyGraveyard
+        gy = StrategyGraveyard(data_dir=tmp_path)
+        gy.record_trade("long_call", won=True, pnl=150.0)
+        graves = gy.get_all()
+        assert len(graves) == 1
+        g = graves[0]
+        assert g.strategy_type == "long_call"
+        assert g.total_trades == 1
+        assert g.win_count == 1
+        assert g.loss_count == 0
+        assert float(g.total_pnl) == 150.0
+        assert float(g.win_rate) == 1.0
+
+    def test_record_loss_updates_stats(self, tmp_path):
+        """Graveyard correctly records a losing trade."""
+        from killjoy.analytics.graveyard import StrategyGraveyard
+        gy = StrategyGraveyard(data_dir=tmp_path)
+        gy.record_trade("long_put", won=False, pnl=-80.0)
+        graves = gy.get_all()
+        assert len(graves) == 1
+        g = graves[0]
+        assert g.total_trades == 1
+        assert g.win_count == 0
+        assert g.loss_count == 1
+        assert float(g.total_pnl) == -80.0
+        assert float(g.win_rate) == 0.0
+
+    def test_mixed_outcomes(self, tmp_path):
+        """Graveyard correctly aggregates wins and losses."""
+        from killjoy.analytics.graveyard import StrategyGraveyard
+        gy = StrategyGraveyard(data_dir=tmp_path)
+        gy.record_trade("bull_call_spread", won=True, pnl=200.0)
+        gy.record_trade("bull_call_spread", won=False, pnl=-100.0)
+        gy.record_trade("bull_call_spread", won=True, pnl=50.0)
+        graves = gy.get_all()
+        assert len(graves) == 1
+        g = graves[0]
+        assert g.total_trades == 3
+        assert g.win_count == 2
+        assert g.loss_count == 1
+        assert float(g.total_pnl) == 150.0
+        assert float(g.win_rate) == pytest.approx(2 / 3, abs=0.01)
+
+    def test_different_strategies_separate(self, tmp_path):
+        """Different strategies get separate grave records."""
+        from killjoy.analytics.graveyard import StrategyGraveyard
+        gy = StrategyGraveyard(data_dir=tmp_path)
+        gy.record_trade("long_call", won=True, pnl=100.0)
+        gy.record_trade("long_put", won=False, pnl=-50.0)
+        graves = gy.get_all()
+        assert len(graves) == 2
+        types = {g.strategy_type for g in graves}
+        assert types == {"long_call", "long_put"}
