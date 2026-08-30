@@ -1,5 +1,8 @@
 const getApiBase = (): string => {
   if (typeof window === 'undefined') return '';
+  // In Vercel, the backend URL is set via env var
+  // In local dev, fall back to localStorage or localhost
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
   return localStorage.getItem('killjoy_api_url') || 'http://localhost:8000';
 };
 
@@ -29,32 +32,35 @@ export interface PaperCycleResponse { results: Record<string, unknown>; }
 export interface JournalEntry { trade_id: string; underlying: string; strategy: string; confidence: number; kill_score: number; result: string; realized_pnl: number; thesis: string; timestamp: string; }
 export interface JournalResponse { entries: JournalEntry[]; count: number; }
 
-// ── New types ────────────────────────────────────────────────────
+// ── Performance types ────────────────────────────────────────────
 
 export interface PerformanceSummary {
   total_trades: number;
+  open_trades: number;
+  closed_trades: number;
   win_count: number;
   loss_count: number;
+  breakeven_count: number;
   win_rate: number;
   realized_pnl: number;
-  avg_pnl_per_trade: number;
-  max_win: number;
-  max_loss: number;
+  avg_win: number;
+  avg_loss: number;
+  profit_factor: number | string;
   max_drawdown: number;
-  sharpe_ratio: number | null;
-  by_strategy: Record<string, { count: number; win_rate: number; total_pnl: number }>;
+  max_drawdown_pct: number;
+  by_strategy: Record<string, { count: number; win_rate: number; total_pnl: number; avg_pnl: number }>;
   by_underlying: Record<string, { count: number; win_rate: number; total_pnl: number }>;
   kill_score_attribution: Record<string, { count: number; win_rate: number; avg_pnl: number }>;
+  confidence_calibration: Record<string, { count: number; win_rate: number; avg_confidence: number }>;
   note?: string;
 }
 
 export interface RejectionAnalytics {
-  total_rejected: number;
-  by_stage: Record<string, number>;
-  top_reasons: Array<{ reason: string; count: number }>;
-  by_strategy: Record<string, number>;
-  by_symbol: Record<string, number>;
+  total: number;
+  top_rejection_reasons: Record<string, number>;
   avg_kill_score: number;
+  by_strategy: Record<string, number>;
+  recent: Array<{ id: string; timestamp: string; underlying: string; strategy: string; kill_score: number; reason: string }>;
 }
 
 export interface EventEntry {
@@ -109,6 +115,169 @@ export interface ParamsResponse {
   history: ParamHistoryEntry[];
 }
 
+// ── New feature types ────────────────────────────────────────────
+
+export interface CounterfactualSummary {
+  total_trades: number;
+  evaluated: number;
+  simulated_pnl: number;
+  win_rate: number;
+  would_win: number;
+  would_loss: number;
+  would_breakeven: number;
+  avg_kill_score: number;
+  recent: Array<{
+    id: string;
+    underlying: string;
+    strategy: string;
+    kill_score: number;
+    simulated_pnl: number;
+    simulated_result: string;
+    rejection_reason: string;
+    timestamp: string;
+  }>;
+}
+
+export interface KillPrecisionSummary {
+  correct_kills: number;
+  false_kills: number;
+  total_kills: number;
+  kill_precision: number;
+  correct_executes: number;
+  false_executes: number;
+  total_executes: number;
+  execute_quality: number;
+  kill_score_distribution: Record<string, { count: number; precision: number; would_win: number; would_loss: number }>;
+  false_kill_analysis: Array<{
+    underlying: string;
+    strategy: string;
+    kill_score: number;
+    would_pnl: number;
+    rejection_reason: string;
+  }>;
+  net_value_added: number;
+}
+
+export interface ReceiptSummary {
+  total: number;
+  executed: number;
+  killed: number;
+  portfolio_rejected: number;
+  risk_rejected: number;
+  avg_kill_score: number;
+  avg_debate_rounds: number;
+  recent_receipts: Array<{
+    receipt_id: string;
+    underlying: string;
+    strategy: string;
+    final_decision: string;
+    kill_score: number;
+    confidence: number;
+    timestamp: string;
+  }>;
+}
+
+export interface DecisionReceipt {
+  receipt_id: string;
+  trade_id: string;
+  timestamp: string;
+  underlying: string;
+  strategy: string;
+  thesis: string;
+  confidence: number;
+  kill_score: number;
+  survives_kill: boolean;
+  portfolio_check: boolean;
+  risk_check: boolean;
+  final_decision: string;
+  kill_reasons: string[];
+  counterfactual: string;
+  portfolio_reasons: string[];
+  risk_reasons: string[];
+  order_id: string;
+  alpaca_status: string;
+  agent_scores: Record<string, number>;
+  debate_rounds: number;
+  mcp_tools_used: string[];
+  outcome_pnl: number | null;
+  outcome_result: string;
+}
+
+export interface GraveyardSummary {
+  total_variants: number;
+  active: number;
+  killed: number;
+  resurrected: number;
+  by_strategy: Record<string, Array<{
+    version: number;
+    status: string;
+    total_trades: number;
+    win_rate: number;
+    total_pnl: number;
+    kill_reason: string;
+  }>>;
+  resurrection_candidates: Array<{
+    strategy_type: string;
+    version: number;
+    total_trades: number;
+    win_rate: number;
+    total_pnl: number;
+    kill_reason: string;
+    resurrection_readiness: string;
+  }>;
+  graves: Array<{
+    id: string;
+    strategy_type: string;
+    version: number;
+    status: string;
+    total_trades: number;
+    win_rate: number;
+    total_pnl: number;
+    kill_reason: string;
+    created_at: string;
+    killed_at: string | null;
+    resurrected_at: string | null;
+  }>;
+}
+
+export interface DisagreementSummary {
+  disagreements: Array<{
+    trade_id: string;
+    underlying: string;
+    disagreement_index: number;
+    consensus: string;
+    agent_scores: Array<{ agent_name: string; confidence: number; stance: string }>;
+  }>;
+  summary: {
+    total_evaluated: number;
+    avg_disagreement_index: number;
+    consensus_distribution: Record<string, number>;
+  };
+}
+
+export interface JudgeModeData {
+  status: {
+    connected: boolean;
+    paper_mode: boolean;
+    risk_engine: string;
+    kill_agent: string;
+    mcp: string;
+  };
+  account: Record<string, string | number>;
+  performance: PerformanceSummary;
+  counterfactual: CounterfactualSummary;
+  kill_precision: KillPrecisionSummary;
+  receipts: ReceiptSummary;
+  graveyard: GraveyardSummary;
+  rejections: {
+    total: number;
+    kill_agent: number;
+    portfolio: number;
+    risk_engine: number;
+    avg_kill_score: number;
+  };
+}
+
 // ── API client ───────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -130,7 +299,6 @@ export const api = {
   analyze: () => apiFetch<AnalyzeResponse>('/api/analyze'),
   paperCycle: () => apiFetch<PaperCycleResponse>('/api/paper-cycle'),
   journal: () => apiFetch<JournalResponse>('/api/journal'),
-  // New endpoints
   performance: () => apiFetch<PerformanceSummary>('/api/performance'),
   rejections: () => apiFetch<RejectionAnalytics>('/api/rejections'),
   events: (params?: { run_id?: string; event_type?: string; date?: string }) => {
@@ -147,4 +315,13 @@ export const api = {
   },
   correlation: () => apiFetch<CorrelationResponse>('/api/correlation'),
   params: () => apiFetch<ParamsResponse>('/api/params'),
+  // New endpoints
+  counterfactual: () => apiFetch<CounterfactualSummary>('/api/counterfactual'),
+  counterfactualEvaluate: () => apiFetch<{ evaluated: number; would_win: number; would_loss: number }>('/api/counterfactual/evaluate'),
+  precision: () => apiFetch<KillPrecisionSummary>('/api/precision'),
+  receipts: () => apiFetch<ReceiptSummary>('/api/receipts'),
+  receipt: (id: string) => apiFetch<DecisionReceipt>(`/api/receipts/${id}`),
+  graveyard: () => apiFetch<GraveyardSummary>('/api/graveyard'),
+  disagreement: () => apiFetch<DisagreementSummary>('/api/disagreement'),
+  judgeMode: () => apiFetch<JudgeModeData>('/api/judge-mode'),
 };

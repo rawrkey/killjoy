@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -127,7 +127,7 @@ class TradeProposal(BaseModel):
     kill_score: Decimal = Field(ge=0, le=1, default=Decimal("0"))
     kill_reasons: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +183,7 @@ class RiskCheck(BaseModel):
 class RiskDecision(BaseModel):
     proposal_id: str
     approved: bool
+    checks: list[RiskCheck] = Field(default_factory=list)
     failed_checks: list[RiskCheck] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     metrics: dict[str, Any] = Field(default_factory=dict)
@@ -235,7 +236,7 @@ class Postmortem(BaseModel):
     improvements: list[str] = Field(default_factory=list)
     lessons: list[str] = Field(default_factory=list)
     llm_analysis: str = Field(default="", description="LLM-generated postmortem analysis")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +246,7 @@ class Postmortem(BaseModel):
 class RejectedTrade(BaseModel):
     """Persisted record of a rejected trade opportunity."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     underlying: str = ""
     thesis: str = ""
     proposed_strategy: str = ""
@@ -265,7 +266,7 @@ class RejectedTrade(BaseModel):
 
 class TradeJournalEntry(BaseModel):
     trade_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     underlying: str = ""
     strategy: str = ""
     legs: list[OptionLeg] = Field(default_factory=list)
@@ -279,3 +280,102 @@ class TradeJournalEntry(BaseModel):
     realized_pnl: Decimal = Decimal("0")
     result: str = ""  # "open", "win", "loss", "breakeven", "closed"
     postmortem: Postmortem | None = None
+
+
+# ---------------------------------------------------------------------------
+# Decision Receipt
+# ---------------------------------------------------------------------------
+
+class DecisionReceipt(BaseModel):
+    """Machine-readable audit trail for every trade decision."""
+    receipt_id: str = Field(default_factory=lambda: f"KJ-{str(uuid.uuid4())[:8].upper()}")
+    trade_id: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    underlying: str = ""
+    strategy: str = ""
+    thesis: str = ""
+    confidence: Decimal = Decimal("0")
+    kill_score: Decimal = Decimal("0")
+    survives_kill: bool = False
+    portfolio_check: bool = False
+    risk_check: bool = False
+    final_decision: str = ""  # "EXECUTE", "KILLED", "PORTFOLIO_REJECTED", "RISK_REJECTED"
+    kill_reasons: list[str] = Field(default_factory=list)
+    counterfactual: str = ""
+    portfolio_reasons: list[str] = Field(default_factory=list)
+    risk_reasons: list[str] = Field(default_factory=list)
+    order_id: str = ""
+    alpaca_status: str = ""
+    agent_scores: dict[str, Decimal] = Field(default_factory=dict)
+    debate_rounds: int = 0
+    mcp_tools_used: list[str] = Field(default_factory=list)
+    outcome_pnl: Decimal | None = None
+    outcome_result: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual Trade
+# ---------------------------------------------------------------------------
+
+class CounterfactualTrade(BaseModel):
+    """Tracks what would have happened if a rejected trade had been executed."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    receipt_id: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    underlying: str = ""
+    strategy: str = ""
+    thesis: str = ""
+    kill_score: Decimal = Decimal("0")
+    rejection_reason: str = ""
+    entry_price_estimate: Decimal = Decimal("0")
+    current_price: Decimal = Decimal("0")
+    simulated_pnl: Decimal | None = None
+    simulated_result: str = ""  # "would_win", "would_loss", "would_breakeven", "pending"
+    evaluation_date: datetime | None = None
+    evaluated: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Strategy Grave
+# ---------------------------------------------------------------------------
+
+class StrategyGrave(BaseModel):
+    """Tracks a strategy variant that has been killed or is active."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    strategy_type: str = ""
+    version: int = 1
+    status: str = "active"  # "active", "killed", "resurrected"
+    kill_reason: str = ""
+    total_trades: int = 0
+    win_count: int = 0
+    loss_count: int = 0
+    total_pnl: Decimal = Decimal("0")
+    win_rate: Decimal = Decimal("0")
+    avg_pnl: Decimal = Decimal("0")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    killed_at: datetime | None = None
+    resurrected_at: datetime | None = None
+    resurrection_attempt: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Agent Disagreement
+# ---------------------------------------------------------------------------
+
+class AgentScore(BaseModel):
+    """Individual agent's confidence/stance for a proposal."""
+    agent_name: str = ""
+    confidence: Decimal = Decimal("0")
+    stance: str = ""  # "bullish", "bearish", "neutral"
+    reasoning: str = ""
+
+
+class AgentDisagreement(BaseModel):
+    """Measures uncertainty from disagreement between agents."""
+    proposal_id: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    agent_scores: list[AgentScore] = Field(default_factory=list)
+    disagreement_index: Decimal = Field(default=Decimal("0"), description="0=full agreement, 1=maximum disagreement")
+    consensus: str = ""  # "unanimous", "majority", "split", "contested"
+    confidence_impact: Decimal = Field(default=Decimal("0"), description="How much disagreement reduces overall confidence")

@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -36,7 +35,11 @@ from killjoy.agent.models import (
 from killjoy.agent.portfolio_agent import check_portfolio_fit
 from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
 from killjoy.alpaca.options_data import OptionsDataClient
+from killjoy.analytics.counterfactual import CounterfactualPortfolio
+from killjoy.analytics.disagreement import compute_disagreement, disagreement_to_dict
 from killjoy.analytics.events import EventLog
+from killjoy.analytics.graveyard import StrategyGraveyard
+from killjoy.analytics.receipts import DecisionReceiptManager
 from killjoy.database.rejected import RejectedTradeLog
 from killjoy.database.repository import TradeJournal
 from killjoy.execution.executor import Executor
@@ -78,18 +81,21 @@ class KilljoyScheduler:
         self._running = False
         self._rejected_log = RejectedTradeLog()
         self._event_log = EventLog()
+        self._counterfactual = CounterfactualPortfolio()
+        self._graveyard = StrategyGraveyard()
+        self._receipts = DecisionReceiptManager()
         self._run_counter = 0
 
     def run_once(self) -> dict[str, Any]:
         """Execute one complete scan cycle. Returns summary."""
         self._run_counter += 1
-        run_id = f"{datetime.utcnow().strftime('%Y-%m-%d')}-{self._run_counter:05d}"
+        run_id = f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}-{self._run_counter:05d}"
 
         logger.info("=== KILLJOY Scan Cycle: RUN %s ===", run_id)
         self._event_log.log("analysis_started", run_id)
         results: dict[str, Any] = {
             "run_id": run_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "universe": self._universe,
             "llm_available": self._llm.is_available if self._llm else False,
             "proposals_generated": 0,
@@ -212,15 +218,6 @@ class KilljoyScheduler:
             "debate_rounds": len(kill_decision.debate_transcript),
         })
 
-        if not kill_decision.survives:
-            self._record_rejection(
-                proposal, thesis, kill_decision,
-                rejection_reason="kill_agent",
-                results=results,
-            )
-            results["proposals_killed"] += 1
-            return
-
         # Portfolio check
         portfolio_check = self._portfolio.evaluate_trade(proposal)
         self._event_log.log("portfolio_checked", run_id, symbol=proposal.underlying, data={
@@ -259,6 +256,18 @@ class KilljoyScheduler:
             results["proposals_risk_rejected"] += 1
             return
 
+        # Compute agent disagreement
+        disagreement = compute_disagreement(
+            analyst_score=thesis.confidence,
+            analyst_stance="bullish" if "up" in thesis.regime.value else "bearish" if "down" in thesis.regime.value else "neutral",
+            strategy_score=proposal.confidence,
+            strategy_stance="bullish" if proposal.strategy in (StrategyType.LONG_CALL, StrategyType.BULL_CALL_SPREAD) else "bearish" if proposal.strategy in (StrategyType.LONG_PUT, StrategyType.BEAR_PUT_SPREAD) else "neutral",
+            kill_score=Decimal("1") - kill_decision.kill_score,
+            kill_stance="approve" if kill_decision.survives else "reject",
+            portfolio_approved=portfolio_check.approved,
+            risk_approved=risk_decision.approved,
+        )
+
         # Record in journal
         entry = TradeJournalEntry(
             underlying=proposal.underlying,
@@ -273,6 +282,30 @@ class KilljoyScheduler:
         )
         self._journal.record_entry(entry)
 
+        # Generate decision receipt
+        agent_scores = {
+            "analyst": thesis.confidence,
+            "strategy": proposal.confidence,
+            "kill_agent": Decimal("1") - kill_decision.kill_score,
+            "disagreement": disagreement.disagreement_index,
+        }
+        receipt = self._receipts.create_receipt(
+            proposal=proposal,
+            thesis=thesis,
+            kill_decision=kill_decision,
+            risk_decision=risk_decision,
+            portfolio_approved=portfolio_check.approved,
+            portfolio_reasons=portfolio_check.reasons,
+            agent_scores=agent_scores,
+        )
+
+        # Record strategy trade in graveyard
+        self._graveyard.record_trade(
+            proposal.strategy.value,
+            won=False,  # Will be updated on close
+            pnl=0,
+        )
+
         # Execute
         if self._dry_run:
             logger.info("DRY RUN: Would execute %s %s", proposal.underlying, proposal.strategy.value)
@@ -285,6 +318,8 @@ class KilljoyScheduler:
             self._journal.record_entry(entry)
             if order_result.status != "failed":
                 results["orders_submitted"] += 1
+                # Update receipt with order ID
+                self._receipts.update_outcome(receipt.receipt_id, 0, "open")
                 self._event_log.log("order_submitted", run_id, symbol=proposal.underlying, data={
                     "order_id": order_result.order_id,
                     "status": order_result.status,
@@ -306,7 +341,7 @@ class KilljoyScheduler:
         risk_failures: list[str] | None = None,
         results: dict | None = None,
     ) -> None:
-        """Record a rejected trade opportunity for analytics."""
+        """Record a rejected trade opportunity for analytics and counterfactual tracking."""
         try:
             rejected = RejectedTrade(
                 underlying=proposal.underlying,
@@ -322,6 +357,10 @@ class KilljoyScheduler:
                 debate_transcript=kill_decision.debate_transcript,
             )
             self._rejected_log.record_rejection(rejected)
+
+            # Record in counterfactual portfolio
+            self._counterfactual.record_rejection(rejected)
+
             if results is not None:
                 results["rejections_recorded"] = results.get("rejections_recorded", 0) + 1
         except Exception as e:

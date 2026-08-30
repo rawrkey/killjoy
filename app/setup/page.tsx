@@ -5,19 +5,30 @@ import { useRouter } from 'next/navigation';
 
 export default function SetupPage() {
   const router = useRouter();
-  const [apiUrl, setApiUrl] = useState('http://localhost:8000');
+  const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [saved, setSaved] = useState(false);
+  const [hasEnvUrl, setHasEnvUrl] = useState(false);
 
   useEffect(() => {
-    const url = localStorage.getItem('killjoy_api_url');
+    // Check if env var is set (Vercel deployment)
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl) {
+      setHasEnvUrl(true);
+      setApiUrl(envUrl);
+    } else {
+      const url = localStorage.getItem('killjoy_api_url');
+      if (url) setApiUrl(url);
+    }
     const key = localStorage.getItem('killjoy_api_key');
     const secret = localStorage.getItem('killjoy_secret_key');
-    if (url) setApiUrl(url);
     if (key) setApiKey(key);
     if (secret) setSecretKey(secret);
-    if (url && key && secret) router.push('/');
+    // Auto-redirect if we have everything
+    if ((envUrl || localStorage.getItem('killjoy_api_url')) && key && secret) {
+      router.push('/');
+    }
   }, [router]);
 
   const handleSave = () => {
@@ -40,16 +51,24 @@ export default function SetupPage() {
             Keys are stored in your browser only — never sent anywhere except your backend.
           </p>
 
+          {hasEnvUrl && (
+            <div className="alert alert-info" style={{ marginBottom: 16 }}>
+              Backend URL configured via environment variable. You can override it below.
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Backend API URL</label>
             <input
               className="form-input"
               value={apiUrl}
               onChange={e => setApiUrl(e.target.value)}
-              placeholder="http://localhost:8000"
+              placeholder="https://your-backend.railway.app"
+              readOnly={hasEnvUrl}
+              style={hasEnvUrl ? { opacity: 0.6 } : {}}
             />
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              Where your Python backend is running
+              {hasEnvUrl ? 'Set via NEXT_PUBLIC_API_URL env var' : 'Where your Python backend is running'}
             </div>
           </div>
 

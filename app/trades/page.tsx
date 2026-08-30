@@ -1,62 +1,151 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { api, OrdersResponse, JournalResponse, RejectionAnalytics } from '@/lib/api';
+import { api, OrdersResponse, JournalResponse, RejectionAnalytics, ReceiptSummary, KillPrecisionSummary } from '@/lib/api';
 
 export default function TradesPage() {
-  const router = useRouter();
   const [orders, setOrders] = useState<OrdersResponse | null>(null);
   const [journal, setJournal] = useState<JournalResponse | null>(null);
   const [rejections, setRejections] = useState<RejectionAnalytics | null>(null);
+  const [receipts, setReceipts] = useState<ReceiptSummary | null>(null);
+  const [precision, setPrecision] = useState<KillPrecisionSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const key = localStorage.getItem('killjoy_api_key');
-    if (!key) { router.push('/setup'); return; }
     api.orders().then(setOrders).catch(() => {});
     api.journal().then(setJournal).catch(e => setError(e.message));
     api.rejections().then(setRejections).catch(() => {});
-  }, [router]);
+    api.receipts().then(setReceipts).catch(() => {});
+    api.precision().then(setPrecision).catch(() => {});
+  }, []);
 
   return (
     <>
       {error && <div className="alert alert-error">{error}</div>}
 
+      {/* Kill Precision — KEY METRIC */}
+      {precision && precision.total_kills > 0 && (
+        <div className="card mb-24" style={{ borderColor: precision.kill_precision >= 0.6 ? 'var(--green-border)' : 'var(--red-border)' }}>
+          <div className="card-header">
+            <span className="card-title">Kill Precision</span>
+            <span className={`badge ${precision.kill_precision >= 0.6 ? 'badge-green' : 'badge-red'}`}>
+              {(precision.kill_precision * 100).toFixed(1)}%
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-label">Correct Kills</div>
+                <div className="stat-value green">{precision.correct_kills}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">False Kills</div>
+                <div className="stat-value red">{precision.false_kills}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Net Value Added</div>
+                <div className="stat-value" style={{ color: precision.net_value_added >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {precision.net_value_added >= 0 ? '+' : ''}${precision.net_value_added.toFixed(2)}
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Execute Quality</div>
+                <div className="stat-value accent">{(precision.execute_quality * 100).toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Rejection Analytics */}
-      {rejections && rejections.total_rejected > 0 && (
+      {rejections && rejections.total > 0 && (
         <div className="card mb-24">
           <div className="card-header">
             <span className="card-title">Why Not Trade?</span>
-            <span className="badge badge-red">{rejections.total_rejected} rejected</span>
+            <span className="badge badge-red">{rejections.total} rejected</span>
           </div>
           <div className="card-body">
             <div className="stats-grid mb-16">
               <div className="stat-card">
                 <div className="stat-label">Kill Agent</div>
-                <div className="stat-value red">{rejections.by_stage?.kill_agent ?? 0}</div>
+                <div className="stat-value red">{rejections.top_rejection_reasons?.kill_agent ?? 0}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Portfolio</div>
-                <div className="stat-value" style={{ color: 'var(--yellow)' }}>{rejections.by_stage?.portfolio ?? 0}</div>
+                <div className="stat-value" style={{ color: 'var(--yellow)' }}>{rejections.top_rejection_reasons?.portfolio ?? 0}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Risk Engine</div>
-                <div className="stat-value" style={{ color: 'var(--purple)' }}>{rejections.by_stage?.risk_engine ?? 0}</div>
+                <div className="stat-value" style={{ color: 'var(--purple)' }}>{rejections.top_rejection_reasons?.risk_engine ?? 0}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Avg Kill Score</div>
                 <div className="stat-value">{rejections.avg_kill_score.toFixed(2)}</div>
               </div>
             </div>
-            {rejections.top_reasons && rejections.top_reasons.length > 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                <strong>Top rejection reasons:</strong>
-                {rejections.top_reasons.slice(0, 3).map((r, i) => (
-                  <span key={i} style={{ marginLeft: 8 }}>
-                    <span className="badge badge-muted">{r.reason}</span> ({r.count})
-                  </span>
-                ))}
+          </div>
+        </div>
+      )}
+
+      {/* Decision Receipts */}
+      {receipts && receipts.total > 0 && (
+        <div className="card mb-24">
+          <div className="card-header">
+            <span className="card-title">Decision Receipts</span>
+            <span className="badge badge-blue">{receipts.total} total</span>
+          </div>
+          <div className="card-body">
+            <div className="stats-grid mb-16">
+              <div className="stat-card">
+                <div className="stat-label">Executed</div>
+                <div className="stat-value green">{receipts.executed}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Killed</div>
+                <div className="stat-value red">{receipts.killed}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Avg Debate Rounds</div>
+                <div className="stat-value">{receipts.avg_debate_rounds}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Avg Kill Score</div>
+                <div className="stat-value">{receipts.avg_kill_score.toFixed(2)}</div>
+              </div>
+            </div>
+            {receipts.recent_receipts.length > 0 && (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Receipt</th><th>Symbol</th><th>Strategy</th><th>Decision</th><th>Kill Score</th><th>Time</th></tr>
+                  </thead>
+                  <tbody>
+                    {receipts.recent_receipts.map((r, i) => (
+                      <tr key={i}>
+                        <td className="mono" style={{ fontSize: 11 }}>{r.receipt_id}</td>
+                        <td><strong>{r.underlying}</strong></td>
+                        <td><span className="badge badge-blue">{r.strategy}</span></td>
+                        <td>
+                          <span className={`badge ${
+                            r.final_decision === 'EXECUTE' ? 'badge-green' :
+                            r.final_decision === 'KILLED' ? 'badge-red' :
+                            'badge-yellow'
+                          }`}>
+                            {r.final_decision}
+                          </span>
+                        </td>
+                        <td className="mono">
+                          <span className={`badge ${r.kill_score >= 0.6 ? 'badge-green' : r.kill_score >= 0.4 ? 'badge-yellow' : 'badge-red'}`}>
+                            {r.kill_score.toFixed(2)}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {new Date(r.timestamp).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

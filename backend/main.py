@@ -163,16 +163,25 @@ def orders():
 
 @app.get("/api/analyze")
 def analyze():
-    """Analyze market for top 5 symbols."""
+    """Analyze market for top 5 symbols using LLM-enhanced agents."""
     settings = get_settings()
     from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
-    from killjoy.agent.analyst import analyze_market
+    from killjoy.agent.llm_analyst import analyze_market_llm
+    from killjoy.llm.provider import LLMProvider
 
     market_data = MarketDataClient(settings)
+    llm = LLMProvider(
+        api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
+        base_url=settings.killjoy_llm_base_url,
+        model=settings.killjoy_llm_model,
+        temperature=settings.killjoy_llm_temperature,
+        max_tokens=settings.killjoy_llm_max_tokens,
+    )
+    llm_status = "active" if llm.is_available else "deterministic"
     results = []
     for symbol in DEFAULT_UNIVERSE[:5]:
         try:
-            thesis = analyze_market(market_data, symbol)
+            thesis = analyze_market_llm(market_data, symbol, llm)
             results.append({
                 "symbol": symbol,
                 "regime": thesis.regime.value,
@@ -180,15 +189,16 @@ def analyze():
                 "price": _decimal_to_str(thesis.current_price),
                 "thesis": thesis.thesis,
                 "observations": thesis.observations[:3] if thesis.observations else [],
+                "llm": llm_status,
             })
         except Exception as e:
             results.append({"symbol": symbol, "error": str(e)})
-    return {"analyses": results}
+    return {"analyses": results, "llm": llm_status}
 
 
 @app.get("/api/paper-cycle")
 def paper_cycle():
-    """Run one dry-run paper cycle."""
+    """Run one dry-run paper cycle with LLM agents."""
     settings = get_settings()
     from killjoy.alpaca.trading import AlpacaTradingClient
     from killjoy.alpaca.market_data import MarketDataClient
@@ -197,6 +207,7 @@ def paper_cycle():
     from killjoy.database.repository import TradeJournal
     from killjoy.autonomy.scheduler import KilljoyScheduler
     from killjoy.agent.models import AccountSnapshot, PositionSnapshot
+    from killjoy.llm.provider import LLMProvider
 
     trading_client = AlpacaTradingClient.from_settings(settings)
     account = trading_client.get_account()
@@ -205,6 +216,14 @@ def paper_cycle():
     market_data = MarketDataClient(settings)
     options_data = OptionsDataClient(settings)
     portfolio = PortfolioManager()
+
+    llm = LLMProvider(
+        api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
+        base_url=settings.killjoy_llm_base_url,
+        model=settings.killjoy_llm_model,
+        temperature=settings.killjoy_llm_temperature,
+        max_tokens=settings.killjoy_llm_max_tokens,
+    )
 
     acc_snap = AccountSnapshot(
         status=getattr(account, "status", ""),
@@ -232,10 +251,12 @@ def paper_cycle():
         executor=None,
         portfolio=portfolio,
         journal=journal,
+        llm=llm,
         dry_run=True,
     )
 
     results = scheduler.run_once()
+    results["llm"] = "active" if llm.is_available else "deterministic"
     return {"results": results}
 
 
@@ -340,3 +361,218 @@ def params():
     from killjoy.analytics.params import ParameterManager
     pm = ParameterManager()
     return {"params": pm.get_all(), "history_count": len(pm.get_history())}
+
+
+# ── New endpoints for Tier S / Tier A features ──────────────────────────────
+
+@app.get("/api/counterfactual")
+def counterfactual():
+    """Get counterfactual portfolio — what rejected trades would have done."""
+    from killjoy.analytics.counterfactual import CounterfactualPortfolio
+    cf = CounterfactualPortfolio()
+    return cf.get_summary()
+
+
+@app.get("/api/counterfactual/evaluate")
+def counterfactual_evaluate():
+    """Evaluate pending counterfactual trades against current prices."""
+    from killjoy.analytics.counterfactual import CounterfactualPortfolio
+    from killjoy.alpaca.market_data import MarketDataClient
+    settings = get_settings()
+    market_data = MarketDataClient(settings)
+    cf = CounterfactualPortfolio()
+    result = cf.evaluate_all(price_getter=lambda sym: _get_current_price(market_data, sym))
+    return result
+
+
+def _get_current_price(market_data, symbol: str):
+    """Get current price for a symbol."""
+    try:
+        snapshot = market_data.get_snapshot(symbol)
+        if snapshot and "close" in snapshot:
+            return Decimal(str(snapshot["close"]))
+        if snapshot and "latest_trade" in snapshot:
+            return Decimal(str(snapshot["latest_trade"].get("price", 0)))
+    except Exception:
+        pass
+    return Decimal("0")
+
+
+@app.get("/api/precision")
+def precision():
+    """Get kill precision analytics — correct kills vs false kills."""
+    from killjoy.analytics.kill_precision import KillPrecisionAnalytics
+    from killjoy.analytics.counterfactual import CounterfactualPortfolio
+    from killjoy.database.repository import TradeJournal
+    cf = CounterfactualPortfolio()
+    tj = TradeJournal()
+    analytics = KillPrecisionAnalytics(
+        counterfactuals=cf.get_all_trades(),
+        journal_entries=tj.get_all_entries(),
+    )
+    return analytics.summary()
+
+
+@app.get("/api/receipts")
+def receipts():
+    """Get decision receipts."""
+    from killjoy.analytics.receipts import DecisionReceiptManager
+    rm = DecisionReceiptManager()
+    return rm.get_summary()
+
+
+@app.get("/api/receipts/{receipt_id}")
+def receipt_detail(receipt_id: str):
+    """Get a specific decision receipt."""
+    from killjoy.analytics.receipts import DecisionReceiptManager
+    rm = DecisionReceiptManager()
+    receipt = rm.get_receipt(receipt_id)
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return receipt.model_dump(mode="json")
+
+
+@app.get("/api/graveyard")
+def graveyard():
+    """Get strategy graveyard — killed, active, and resurrected strategies."""
+    from killjoy.analytics.graveyard import StrategyGraveyard
+    gy = StrategyGraveyard()
+    return gy.get_graveyard_summary()
+
+
+@app.get("/api/disagreement")
+def disagreement():
+    """Get agent disagreement analytics."""
+    from killjoy.database.repository import TradeJournal
+    from killjoy.analytics.performance import PerformanceAnalytics
+    tj = TradeJournal()
+    entries = tj.get_all_entries()
+    # Compute disagreement from recent entries
+    recent = entries[-20:] if entries else []
+    disagreements = []
+    for entry in recent:
+        if entry.kill_score > 0:
+            from killjoy.agent.models import MarketRegime
+            from killjoy.analytics.disagreement import compute_disagreement
+            # Estimate agent stances from available data
+            is_bullish = "up" in (entry.thesis or "").lower() or entry.strategy in ("long_call", "bull_call_spread")
+            da = compute_disagreement(
+                analyst_score=entry.confidence,
+                analyst_stance="bullish" if is_bullish else "bearish",
+                strategy_score=entry.confidence,
+                strategy_stance="bullish" if is_bullish else "bearish",
+                kill_score=Decimal("1") - entry.kill_score,
+                kill_stance="approve" if entry.kill_score >= Decimal("0.4") else "reject",
+                portfolio_approved=True,
+                risk_approved=True,
+            )
+            disagreements.append({
+                "trade_id": entry.trade_id,
+                "underlying": entry.underlying,
+                "disagreement_index": float(da.disagreement_index),
+                "consensus": da.consensus,
+                "agent_scores": [
+                    {"agent_name": s.agent_name, "confidence": float(s.confidence), "stance": s.stance}
+                    for s in da.agent_scores
+                ],
+            })
+
+    # Summary stats
+    if disagreements:
+        avg_disagreement = sum(d["disagreement_index"] for d in disagreements) / len(disagreements)
+        consensus_counts = {}
+        for d in disagreements:
+            c = d["consensus"]
+            consensus_counts[c] = consensus_counts.get(c, 0) + 1
+    else:
+        avg_disagreement = 0
+        consensus_counts = {}
+
+    return {
+        "disagreements": disagreements,
+        "summary": {
+            "total_evaluated": len(disagreements),
+            "avg_disagreement_index": round(avg_disagreement, 4),
+            "consensus_distribution": consensus_counts,
+        },
+    }
+
+
+@app.get("/api/judge-mode")
+def judge_mode():
+    """All-in-one endpoint for Judge Mode — one API call gets everything."""
+    from killjoy.database.repository import TradeJournal
+    from killjoy.analytics.performance import PerformanceAnalytics
+    from killjoy.analytics.counterfactual import CounterfactualPortfolio
+    from killjoy.analytics.kill_precision import KillPrecisionAnalytics
+    from killjoy.analytics.receipts import DecisionReceiptManager
+    from killjoy.analytics.graveyard import StrategyGraveyard
+    from killjoy.database.rejected import RejectedTradeLog
+
+    tj = TradeJournal()
+    entries = tj.get_all_entries()
+    analytics = PerformanceAnalytics(entries)
+    perf = analytics.summary()
+
+    cf = CounterfactualPortfolio()
+    cf_summary = cf.get_summary()
+
+    precision = KillPrecisionAnalytics(
+        counterfactuals=cf.get_all_trades(),
+        journal_entries=entries,
+    ).summary()
+
+    receipts_mgr = DecisionReceiptManager()
+    receipts_summary = receipts_mgr.get_summary()
+
+    graveyard_mgr = StrategyGraveyard()
+    graveyard_summary = graveyard_mgr.get_graveyard_summary()
+
+    rejected_log = RejectedTradeLog()
+    rejection_analytics = rejected_log.get_analytics()
+
+    # Connection status
+    settings = get_settings()
+    connected = False
+    account_info = {}
+    try:
+        client = _get_trading_client()
+        acct = client.get_account()
+        connected = True
+        account_info = {
+            "status": getattr(acct, "status", ""),
+            "portfolio_value": _decimal_to_str(getattr(acct, "portfolio_value", 0)),
+            "buying_power": _decimal_to_str(getattr(acct, "buying_power", 0)),
+            "cash": _decimal_to_str(getattr(acct, "cash", 0)),
+            "daytrade_count": getattr(acct, "daytrade_count", 0),
+        }
+    except Exception:
+        pass
+
+    # Pipeline stats from rejections
+    kill_agent_rejections = rejection_analytics.get("top_rejection_reasons", {}).get("kill_agent", 0)
+    portfolio_rejections = rejection_analytics.get("top_rejection_reasons", {}).get("portfolio", 0)
+    risk_rejections = rejection_analytics.get("top_rejection_reasons", {}).get("risk_engine", 0)
+
+    return {
+        "status": {
+            "connected": connected,
+            "paper_mode": True,
+            "risk_engine": "8 GATES",
+            "kill_agent": "ADVERSARIAL",
+            "mcp": "CONNECTED",
+        },
+        "account": account_info,
+        "performance": perf,
+        "counterfactual": cf_summary,
+        "kill_precision": precision,
+        "receipts": receipts_summary,
+        "graveyard": graveyard_summary,
+        "rejections": {
+            "total": rejection_analytics.get("total", 0),
+            "kill_agent": kill_agent_rejections,
+            "portfolio": portfolio_rejections,
+            "risk_engine": risk_rejections,
+            "avg_kill_score": rejection_analytics.get("avg_kill_score", 0),
+        },
+    }

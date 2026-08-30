@@ -4,17 +4,21 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: '\u25A0' },
+  { href: '/judge', label: 'Judge Mode', icon: '\u2605' },
   { href: '/positions', label: 'Positions', icon: '\u25B2' },
   { href: '/market', label: 'Market', icon: '\u25C6' },
   { href: '/trades', label: 'Trades', icon: '\u25B6' },
+  { href: '/graveyard', label: 'Graveyard', icon: '\u2620' },
   { href: '/settings', label: 'Settings', icon: '\u2699' },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
+  '/judge': 'Judge Mode',
   '/positions': 'Positions',
   '/market': 'Market Analysis',
   '/trades': 'Trade Log',
+  '/graveyard': 'Strategy Graveyard',
   '/settings': 'Settings',
 };
 
@@ -41,7 +45,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
             </a>
           ))}
         </nav>
-        <div className="sidebar-footer">v0.1.0 &middot; Paper Only</div>
+        <div className="sidebar-footer">v0.2.0 &middot; Paper Only</div>
       </aside>
       <main className="main">
         <div className="topbar">

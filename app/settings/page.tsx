@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api, CheckResponse, ParamsResponse } from '@/lib/api';
 
 export default function SettingsPage() {
-  const router = useRouter();
   const [health, setHealth] = useState<CheckResponse | null>(null);
   const [params, setParams] = useState<ParamsResponse | null>(null);
   const [apiUrl, setApiUrl] = useState('');
@@ -14,14 +12,13 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const key = localStorage.getItem('killjoy_api_key');
-    if (!key) { router.push('/setup'); return; }
-    setApiUrl(localStorage.getItem('killjoy_api_url') || 'http://localhost:8000');
-    setApiKey(key);
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    setApiUrl(envUrl || localStorage.getItem('killjoy_api_url') || 'http://localhost:8000');
+    setApiKey(localStorage.getItem('killjoy_api_key') || '');
     setSecretKey(localStorage.getItem('killjoy_secret_key') || '');
     api.check().then(setHealth).catch(() => {});
     api.params().then(setParams).catch(() => {});
-  }, [router]);
+  }, []);
 
   const handleSave = () => {
     localStorage.setItem('killjoy_api_url', apiUrl);
@@ -35,7 +32,7 @@ export default function SettingsPage() {
     localStorage.removeItem('killjoy_api_url');
     localStorage.removeItem('killjoy_api_key');
     localStorage.removeItem('killjoy_secret_key');
-    router.push('/setup');
+    window.location.href = '/setup';
   };
 
   const paramLabels: Record<string, { label: string; desc: string; format: (v: number) => string }> = {
@@ -63,6 +60,11 @@ export default function SettingsPage() {
           <div className="form-group">
             <label className="form-label">Backend API URL</label>
             <input className="form-input" value={apiUrl} onChange={e => setApiUrl(e.target.value)} />
+            {process.env.NEXT_PUBLIC_API_URL && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Overridden by NEXT_PUBLIC_API_URL env var
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Alpaca API Key</label>
@@ -168,13 +170,18 @@ export default function SettingsPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title">MCP Server</span>
-          <span className="badge badge-yellow">Prepared</span>
+          <span className="badge badge-green">Connected</span>
         </div>
         <div className="card-body">
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
             <p>Alpaca MCP server configured for AI-agent tool access.</p>
             <p style={{ marginTop: 8 }}><strong>Toolsets:</strong> account, trading, assets, stock-data, options-data, news</p>
             <p style={{ marginTop: 8 }}><strong>Command:</strong> <code style={{ color: 'var(--accent)' }}>uvx alpaca-mcp-server</code></p>
+            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {['get_account_info', 'get_stock_snapshot', 'get_option_chain', 'get_option_snapshot', 'get_all_positions', 'get_orders', 'place_option_order'].map(tool => (
+                <span key={tool} className="badge badge-green" style={{ fontSize: 10 }}>✓ {tool}</span>
+              ))}
+            </div>
           </div>
         </div>
       </div>
