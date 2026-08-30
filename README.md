@@ -7,7 +7,7 @@ An autonomous AI options trading agent that uses adversarial AI debate to challe
 **Built for the Alpaca AI Hackathon**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-110_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-109_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
 [![Paper Only](https://img.shields.io/badge/mode-paper_only-FFD600?style=flat&logo=shield&logoColor=black)](#safety)
 
 ---
@@ -352,7 +352,7 @@ main.py                     CLI Entry Point
 pytest tests/ -v
 ```
 
-110 tests covering config, Alpaca client, models, options, strategies, kill agent, risk engine, portfolio, position sizing, monitoring, journal, postmortem, LLM layer, and analytics.
+109 tests covering config, Alpaca client, models, options, strategies, kill agent, risk engine, portfolio, position sizing, monitoring, journal, postmortem, LLM layer, and analytics.
 
 ---
 

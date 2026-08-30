@@ -10,9 +10,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Annotated
 
 # Add parent directory so we can import killjoy
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -23,6 +24,14 @@ logger = logging.getLogger("killjoy.api")
 
 # ── Autonomous mode state ────────────────────────────────────────────────────
 _autonomous_enabled = False
+
+# ── Auth for control endpoints ────────────────────────────────────────────────
+CONTROL_SECRET = os.environ.get("KILLJOY_CONTROL_SECRET", "")
+
+async def verify_control_secret(x_control_secret: str = Header(default="")):
+    """Require KILLJOY_CONTROL_SECRET header for control endpoints."""
+    if CONTROL_SECRET and x_control_secret != CONTROL_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid control secret")
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 
@@ -268,7 +277,7 @@ def paper_cycle():
     return {"results": results}
 
 
-@app.get("/api/live-cycle")
+@app.get("/api/live-cycle", dependencies=[Depends(verify_control_secret)])
 def live_cycle():
     """Run one LIVE paper cycle — orders will be submitted to Alpaca."""
     settings = get_settings()
@@ -661,7 +670,7 @@ def autonomous_status():
     return {"enabled": _autonomous_enabled}
 
 
-@app.post("/api/autonomous/toggle")
+@app.post("/api/autonomous/toggle", dependencies=[Depends(verify_control_secret)])
 def autonomous_toggle():
     """Enable or disable autonomous trading."""
     global _autonomous_enabled
@@ -670,7 +679,7 @@ def autonomous_toggle():
     return {"enabled": _autonomous_enabled}
 
 
-@app.get("/api/cron/run")
+@app.get("/api/cron/run", dependencies=[Depends(verify_control_secret)])
 def cron_run():
     """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
 

@@ -142,6 +142,13 @@ class KilljoyScheduler:
                             realized_pnl = float(pos_snap.unrealized_pl)
                             self._journal.record_exit(trade.get("id", ""), realized_pnl, "closed", order_result.order_id)
                             results["positions_closed"] += 1
+                            # Update graveyard with actual outcome
+                            strategy_type = trade.get("strategy", "unknown")
+                            self._graveyard.record_trade(
+                                strategy_type,
+                                won=realized_pnl > 0,
+                                pnl=realized_pnl,
+                            )
                             self._event_log.log("position_closed", run_id, symbol=symbol, data={
                                 "pnl": realized_pnl,
                                 "reason": reason,
@@ -342,13 +349,6 @@ class KilljoyScheduler:
             agent_scores=agent_scores,
         )
 
-        # Record strategy trade in graveyard
-        self._graveyard.record_trade(
-            proposal.strategy.value,
-            won=False,  # Will be updated on close
-            pnl=0,
-        )
-
         # Execute
         if self._dry_run:
             logger.info("DRY RUN: Would execute %s %s", proposal.underlying, proposal.strategy.value)
@@ -361,6 +361,12 @@ class KilljoyScheduler:
             self._journal.record_entry(entry)
             if order_result.status != "failed":
                 results["orders_submitted"] += 1
+                # Record in graveyard (outcome pending until close)
+                self._graveyard.record_trade(
+                    proposal.strategy.value,
+                    won=False,
+                    pnl=0,
+                )
                 # Update receipt with order ID
                 self._receipts.update_outcome(receipt.receipt_id, 0, "open")
                 self._event_log.log("order_submitted", run_id, symbol=proposal.underlying, data={

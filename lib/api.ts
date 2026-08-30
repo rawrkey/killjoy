@@ -11,8 +11,10 @@ const getHeaders = (): Record<string, string> => {
   if (typeof window !== 'undefined') {
     const apiKey = localStorage.getItem('killjoy_api_key');
     const secretKey = localStorage.getItem('killjoy_secret_key');
+    const controlSecret = localStorage.getItem('killjoy_control_secret');
     if (apiKey) headers['X-Alpaca-Api-Key'] = apiKey;
     if (secretKey) headers['X-Alpaca-Secret-Key'] = secretKey;
+    if (controlSecret) headers['X-Control-Secret'] = controlSecret;
   }
   return headers;
 };

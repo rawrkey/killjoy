@@ -8,6 +8,7 @@ export default function SetupPage() {
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
+  const [controlSecret, setControlSecret] = useState('');
   const [saved, setSaved] = useState(false);
   const [hasEnvUrl, setHasEnvUrl] = useState(false);
 
@@ -25,6 +26,8 @@ export default function SetupPage() {
     const secret = localStorage.getItem('killjoy_secret_key');
     if (key) setApiKey(key);
     if (secret) setSecretKey(secret);
+    const control = localStorage.getItem('killjoy_control_secret');
+    if (control) setControlSecret(control);
     // Auto-redirect if we have everything
     if ((envUrl || localStorage.getItem('killjoy_api_url')) && key && secret) {
       router.push('/');
@@ -35,6 +38,7 @@ export default function SetupPage() {
     localStorage.setItem('killjoy_api_url', apiUrl);
     localStorage.setItem('killjoy_api_key', apiKey);
     localStorage.setItem('killjoy_secret_key', secretKey);
+    if (controlSecret) localStorage.setItem('killjoy_control_secret', controlSecret);
     setSaved(true);
     setTimeout(() => router.push('/'), 800);
   };
@@ -92,6 +96,20 @@ export default function SetupPage() {
               placeholder="..."
               type="password"
             />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Control Secret <span style={{ color: 'var(--text-muted)' }}>(optional)</span></label>
+            <input
+              className="form-input"
+              value={controlSecret}
+              onChange={e => setControlSecret(e.target.value)}
+              placeholder="Set KILLJOY_CONTROL_SECRET on backend"
+              type="password"
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Required only if KILLJOY_CONTROL_SECRET env var is set on the backend
+            </div>
           </div>
 
           {saved && (
