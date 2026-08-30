@@ -131,7 +131,14 @@ class LLMProvider:
                 try:
                     parsed = json.loads(content)
                 except (json.JSONDecodeError, ValueError):
-                    pass
+                    # Try extracting from markdown code blocks
+                    import re
+                    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', content, re.DOTALL)
+                    if m:
+                        try:
+                            parsed = json.loads(m.group(1))
+                        except (json.JSONDecodeError, ValueError):
+                            pass
 
             return LLMResponse(
                 content=content,
@@ -179,6 +186,15 @@ class LLMProvider:
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
         )
+
+        # If structured output not supported, retry without response_format
+        if not response.success and "structured-outputs" in (response.error or ""):
+            logger.info("Model does not support structured outputs, retrying without response_format")
+            response = self.chat(
+                json_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
 
         if not response.success or not response.parsed:
             return None, response
