@@ -11,6 +11,7 @@ export default function MarketPage() {
   const [correlation, setCorrelation] = useState<CorrelationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,6 +20,23 @@ export default function MarketPage() {
     api.analyze().then(setData).catch(e => setError(e.message));
     api.correlation().then(setCorrelation).catch(() => {});
   }, [router]);
+
+  // Check market hours every 30s
+  useEffect(() => {
+    const checkMarket = () => {
+      const now = new Date();
+      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = et.getDay();
+      const h = et.getHours();
+      const m = et.getMinutes();
+      const mins = h * 60 + m;
+      const isOpen = day >= 1 && day <= 5 && mins >= 570 && mins < 960; // 9:30=570, 16:00=960
+      setMarketOpen(isOpen);
+    };
+    checkMarket();
+    const id = setInterval(checkMarket, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const runCycle = async () => {
     setLoading(true);
@@ -54,16 +72,24 @@ export default function MarketPage() {
           <span className="card-title">Actions</span>
         </div>
         <div className="card-body">
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-primary" onClick={runCycle} disabled={loading}>
               {loading ? <><span className="spinner" /> Running...</> : 'Run Paper Cycle'}
             </button>
-            <button className="btn btn-danger" onClick={runLiveCycle} disabled={liveLoading}>
+            <button
+              className="btn btn-danger"
+              onClick={runLiveCycle}
+              disabled={liveLoading || !marketOpen}
+              title={!marketOpen ? 'Market is closed (Mon-Fri 9:30 AM - 4:00 PM ET)' : ''}
+            >
               {liveLoading ? <><span className="spinner" /> Executing...</> : 'Run LIVE Cycle'}
             </button>
             <button className="btn btn-secondary" onClick={() => api.analyze().then(setData)}>
               Refresh Analysis
             </button>
+            <span style={{ fontSize: 11, color: marketOpen ? 'var(--green)' : 'var(--text-muted)', marginLeft: 4 }}>
+              {marketOpen ? 'Market OPEN' : 'Market CLOSED'}
+            </span>
           </div>
         </div>
       </div>
