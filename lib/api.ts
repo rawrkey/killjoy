@@ -327,6 +327,7 @@ export const api = {
   graveyard: () => apiFetch<GraveyardSummary>('/api/graveyard'),
   disagreement: () => apiFetch<DisagreementSummary>('/api/disagreement'),
   judgeMode: () => apiFetch<JudgeModeData>('/api/judge-mode'),
+  lastReport: () => apiFetch<{ report: any; message?: string }>('/api/reports/last'),
   autonomousStatus: () => apiFetch<{ enabled: boolean }>('/api/autonomous/status'),
   autonomousToggle: () => apiFetch<{ enabled: boolean }>('/api/autonomous/toggle', { method: 'POST' }),
 };

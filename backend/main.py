@@ -524,6 +524,16 @@ def graveyard():
     return gy.get_graveyard_summary()
 
 
+@app.get("/api/reports/last")
+def report_last():
+    """Get the latest cycle report."""
+    from killjoy.analytics.reports import get_latest_report
+    report = get_latest_report()
+    if not report:
+        return {"report": None, "message": "No reports yet. Run a cycle first."}
+    return {"report": report}
+
+
 @app.get("/api/disagreement")
 def disagreement():
     """Get agent disagreement analytics."""

@@ -40,6 +40,7 @@ from killjoy.analytics.disagreement import compute_disagreement, disagreement_to
 from killjoy.analytics.events import EventLog
 from killjoy.analytics.graveyard import StrategyGraveyard
 from killjoy.analytics.receipts import DecisionReceiptManager
+from killjoy.analytics.reports import CycleReportBuilder, save_report
 from killjoy.database.rejected import RejectedTradeLog
 from killjoy.database.repository import TradeJournal
 from killjoy.execution.executor import Executor
@@ -84,11 +85,13 @@ class KilljoyScheduler:
         self._counterfactual = CounterfactualPortfolio()
         self._graveyard = StrategyGraveyard()
         self._receipts = DecisionReceiptManager()
+        self._report = CycleReportBuilder()
         self._run_counter = 0
 
     def run_once(self) -> dict[str, Any]:
         """Execute one complete scan cycle. Returns summary."""
         self._run_counter += 1
+        self._report = CycleReportBuilder()
         run_id = f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}-{self._run_counter:05d}"
 
         logger.info("=== KILLJOY Scan Cycle: RUN %s ===", run_id)
@@ -155,6 +158,10 @@ class KilljoyScheduler:
                                 "order_id": order_result.order_id,
                             })
                             logger.info("CLOSED %s: P&L $%.2f — %s", symbol, realized_pnl, reason)
+                            self._report.add_position_close(
+                                symbol, reason, realized_pnl,
+                                strategy=trade.get("strategy", ""),
+                            )
                     else:
                         logger.info("DRY RUN: Would close %s — %s", symbol, reason)
                         results["positions_closed"] += 1
@@ -179,6 +186,18 @@ class KilljoyScheduler:
             results["rejections_recorded"],
         )
         self._event_log.log("analysis_completed", run_id, data=results)
+
+        # Save report
+        self._report.set_summary(
+            mode="dry_run" if self._dry_run else "live",
+            run_id=run_id,
+            llm="active" if (self._llm and self._llm.is_available) else "deterministic",
+        )
+        try:
+            save_report(self._report.build())
+        except Exception as e:
+            logger.warning("Failed to save cycle report: %s", e)
+
         return results
 
     def _scan_symbol(self, symbol: str, results: dict) -> None:
@@ -193,6 +212,13 @@ class KilljoyScheduler:
             thesis.regime.value,
             thesis.confidence,
             "LLM" if (self._llm and self._llm.is_available) else "DETERMINISTIC",
+        )
+        self._report.add_symbol_analysis(
+            symbol=symbol,
+            regime=thesis.regime.value,
+            confidence=float(thesis.confidence),
+            price=float(thesis.current_price),
+            thesis=thesis.thesis or "",
         )
 
         # 2. Get options chain
@@ -349,18 +375,23 @@ class KilljoyScheduler:
             agent_scores=agent_scores,
         )
 
+        # Track for report
+        submitted = False
+        order_id = ""
+
         # Execute
         if self._dry_run:
             logger.info("DRY RUN: Would execute %s %s", proposal.underlying, proposal.strategy.value)
             results["orders_submitted"] += 1
-            return
-
-        if self._executor:
+            submitted = True
+        elif self._executor:
             order_result = self._executor.execute_proposal(proposal)
             entry.order_result = order_result
             self._journal.record_entry(entry)
             if order_result.status != "failed":
                 results["orders_submitted"] += 1
+                submitted = True
+                order_id = order_result.order_id
                 # Record in graveyard (outcome pending until close)
                 self._graveyard.record_trade(
                     proposal.strategy.value,
@@ -379,6 +410,21 @@ class KilljoyScheduler:
                     "error": order_result.error,
                 })
                 logger.warning("ORDER FAILED: %s — %s", proposal.underlying, order_result.error)
+
+        # Add to report
+        self._report.add_proposal(
+            symbol=proposal.underlying,
+            strategy=proposal.strategy.value,
+            kill_score=float(kill_decision.kill_score),
+            survives=kill_decision.survives,
+            kill_reasons=kill_decision.kill_reasons,
+            risk_approved=risk_decision.approved,
+            risk_reasons=risk_decision.reasons,
+            portfolio_approved=portfolio_check.approved,
+            portfolio_reasons=portfolio_check.reasons,
+            submitted=submitted,
+            order_id=order_id,
+        )
 
     def _record_rejection(
         self,
