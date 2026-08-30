@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [precision, setPrecision] = useState<KillPrecisionSummary | null>(null);
   const [disagreement, setDisagreement] = useState<DisagreementSummary | null>(null);
   const [autonomous, setAutonomous] = useState<boolean | null>(null);
+  const [marketOpen, setMarketOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,6 +26,22 @@ export default function Dashboard() {
     api.precision().then(setPrecision).catch(() => {});
     api.disagreement().then(setDisagreement).catch(() => {});
     api.autonomousStatus().then(r => setAutonomous(r.enabled)).catch(() => {});
+  }, []);
+
+  // Check market hours every 30s
+  useEffect(() => {
+    const checkMarket = () => {
+      const now = new Date();
+      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = et.getDay();
+      const h = et.getHours();
+      const m = et.getMinutes();
+      const mins = h * 60 + m;
+      setMarketOpen(day >= 1 && day <= 5 && mins >= 570 && mins < 960);
+    };
+    checkMarket();
+    const id = setInterval(checkMarket, 30000);
+    return () => clearInterval(id);
   }, []);
 
   const toggleAutonomous = async () => {
@@ -79,19 +96,23 @@ export default function Dashboard() {
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 {autonomous
                   ? 'Auto-trading every 15 min during market hours (9:30 AM – 4:00 PM ET)'
-                  : 'Click to enable auto-trading. Requires cron-job.org to ping every 15 min.'}
+                  : marketOpen
+                    ? 'Click to enable auto-trading. Requires cron-job.org to ping every 15 min.'
+                    : 'Market is closed. Enable during market hours (Mon-Fri 9:30 AM – 4:00 PM ET).'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {autonomous
                   ? 'Auto-buys new positions, auto-sells at +50% profit / -20% loss / -10% trailing stop'
-                  : 'You can also close this tab — the cron job runs on its own'}
+                  : marketOpen ? 'You can also close this tab — the cron job runs on its own' : 'Market status checked automatically'}
               </div>
             </div>
             <button
               className={`btn ${autonomous ? 'btn-danger' : 'btn-primary'}`}
               onClick={toggleAutonomous}
+              disabled={!marketOpen && !autonomous}
+              title={!marketOpen && !autonomous ? 'Market is closed (Mon-Fri 9:30 AM - 4:00 PM ET)' : ''}
             >
-              {autonomous ? 'Stop Auto-Trading' : 'Start Auto-Trading'}
+              {!marketOpen && !autonomous ? 'Market Closed' : autonomous ? 'Stop Auto-Trading' : 'Start Auto-Trading'}
             </button>
           </div>
         </div>
