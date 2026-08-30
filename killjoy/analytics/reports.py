@@ -20,22 +20,29 @@ class CycleReportBuilder:
         self._symbols: list[dict[str, Any]] = []
         self._closes: list[dict[str, Any]] = []
         self._summary: dict[str, Any] = {}
+        self._positions_checked: int = 0
 
-    def add_symbol_analysis(self, symbol: str, regime: str, confidence: float, price: float, thesis: str):
+    def add_symbol_analysis(self, symbol: str, regime: str, confidence: float, price: float, thesis: str,
+                            observations: list[str] | None = None):
         self._symbols.append({
             "symbol": symbol,
             "regime": regime,
             "confidence": confidence,
             "price": price,
             "thesis": thesis,
+            "observations": observations or [],
             "proposals": [],
         })
 
-    def add_proposal(self, symbol: str, strategy: str, kill_score: float, survives: bool,
-                     kill_reasons: list[str], risk_approved: bool, risk_reasons: list[str],
+    def add_proposal(self, symbol: str, strategy: str,
+                     analyst_score: float, analyst_stance: str, analyst_thesis: str,
+                     kill_score: float, survives: bool, kill_reasons: list[str],
+                     kill_objections: list[str], kill_critical: list[str],
+                     debate_rounds: int,
                      portfolio_approved: bool, portfolio_reasons: list[str],
-                     submitted: bool, order_id: str = ""):
-        # Find the symbol entry
+                     risk_approved: bool, risk_reasons: list[str],
+                     risk_checks: list[dict[str, Any]] | None = None,
+                     submitted: bool = False, order_id: str = ""):
         entry = None
         for s in self._symbols:
             if s["symbol"] == symbol:
@@ -45,7 +52,6 @@ class CycleReportBuilder:
             entry = {"symbol": symbol, "proposals": []}
             self._symbols.append(entry)
 
-        # Determine what happened in plain English
         if submitted:
             outcome = "ORDER SUBMITTED"
         elif not portfolio_approved:
@@ -59,15 +65,30 @@ class CycleReportBuilder:
 
         entry["proposals"].append({
             "strategy": strategy,
-            "kill_score": kill_score,
-            "survives": survives,
-            "kill_reasons": kill_reasons,
-            "risk_approved": risk_approved,
-            "risk_reasons": risk_reasons,
-            "portfolio_approved": portfolio_approved,
-            "portfolio_reasons": portfolio_reasons,
             "outcome": outcome,
             "order_id": order_id,
+            "analyst": {
+                "score": analyst_score,
+                "stance": analyst_stance,
+                "thesis": analyst_thesis,
+            },
+            "kill_agent": {
+                "score": kill_score,
+                "survives": survives,
+                "reasons": kill_reasons,
+                "objections": kill_objections,
+                "critical_failures": kill_critical,
+                "debate_rounds": debate_rounds,
+            },
+            "portfolio": {
+                "approved": portfolio_approved,
+                "reasons": portfolio_reasons,
+            },
+            "risk_engine": {
+                "approved": risk_approved,
+                "reasons": risk_reasons,
+                "checks": risk_checks or [],
+            },
         })
 
     def add_position_close(self, symbol: str, reason: str, pnl: float, strategy: str = ""):
@@ -78,12 +99,14 @@ class CycleReportBuilder:
             "strategy": strategy,
         })
 
+    def set_positions_checked(self, count: int):
+        self._positions_checked = count
+
     def set_summary(self, **kwargs):
         self._summary = kwargs
 
     def build(self) -> dict[str, Any]:
         """Build the full report dict."""
-        # Compute simple stats
         total_proposals = sum(len(s["proposals"]) for s in self._symbols)
         killed = sum(1 for s in self._symbols for p in s["proposals"] if p["outcome"] == "KILLED BY AGENT")
         portfolio_rejected = sum(1 for s in self._symbols for p in s["proposals"] if p["outcome"] == "PORTFOLIO REJECTED")
@@ -92,8 +115,10 @@ class CycleReportBuilder:
         closed = len(self._closes)
         closed_pnl = sum(c["pnl"] for c in self._closes)
 
-        # Build plain-English summary lines
         summary_lines = []
+
+        if self._positions_checked > 0:
+            summary_lines.append(f"Checked {self._positions_checked} open position(s) for exit signals.")
 
         if closed > 0:
             wins = sum(1 for c in self._closes if c["pnl"] > 0)
@@ -108,7 +133,18 @@ class CycleReportBuilder:
             summary_lines.append(f"Analyzed {total_proposals} opportunity(ies). None survived all checks.")
 
         if killed > 0:
-            summary_lines.append(f"Kill Agent rejected {killed} — they didn't survive adversarial testing.")
+            total_objections = sum(
+                len(p["kill_agent"]["objections"])
+                for s in self._symbols for p in s["proposals"]
+            )
+            total_critical = sum(
+                len(p["kill_agent"]["critical_failures"])
+                for s in self._symbols for p in s["proposals"]
+            )
+            summary_lines.append(
+                f"Kill Agent rejected {killed} — raised {total_objections} objection(s)"
+                + (f", {total_critical} critical" if total_critical else "") + "."
+            )
 
         if not summary_lines:
             summary_lines.append("Cycle completed. No action taken.")
@@ -125,6 +161,7 @@ class CycleReportBuilder:
                 "portfolio_rejected": portfolio_rejected,
                 "risk_rejected": risk_rejected,
                 "orders_submitted": submitted,
+                "positions_checked": self._positions_checked,
                 "positions_closed": closed,
                 "closed_pnl": round(closed_pnl, 2),
             },

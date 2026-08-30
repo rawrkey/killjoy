@@ -114,6 +114,7 @@ class KilljoyScheduler:
         open_trades = self._journal.get_open_trades()
         results["positions_monitored"] = len(open_trades)
         results["positions_closed"] = 0
+        self._report.set_positions_checked(len(open_trades))
 
         for trade in open_trades:
             try:
@@ -219,6 +220,7 @@ class KilljoyScheduler:
             confidence=float(thesis.confidence),
             price=float(thesis.current_price),
             thesis=thesis.thesis or "",
+            observations=thesis.observations or [],
         )
 
         # 2. Get options chain
@@ -415,13 +417,20 @@ class KilljoyScheduler:
         self._report.add_proposal(
             symbol=proposal.underlying,
             strategy=proposal.strategy.value,
+            analyst_score=float(thesis.confidence),
+            analyst_stance=thesis.regime.value,
+            analyst_thesis=thesis.thesis or "",
             kill_score=float(kill_decision.kill_score),
             survives=kill_decision.survives,
             kill_reasons=kill_decision.kill_reasons,
-            risk_approved=risk_decision.approved,
-            risk_reasons=risk_decision.reasons,
+            kill_objections=kill_decision.objections,
+            kill_critical=kill_decision.critical_failures,
+            debate_rounds=len(kill_decision.debate_transcript),
             portfolio_approved=portfolio_check.approved,
             portfolio_reasons=portfolio_check.reasons,
+            risk_approved=risk_decision.approved,
+            risk_reasons=risk_decision.reasons,
+            risk_checks=[{"name": c.name, "passed": c.passed, "reason": c.reason} for c in risk_decision.checks],
             submitted=submitted,
             order_id=order_id,
         )

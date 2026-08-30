@@ -2,66 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, AnalyzeResponse, PaperCycleResponse, CorrelationResponse } from '@/lib/api';
-
-interface CycleReport {
-  timestamp: string;
-  mode: string;
-  run_id: string;
-  llm: string;
-  summary_text: string;
-  stats: {
-    total_analyzed: number;
-    killed: number;
-    portfolio_rejected: number;
-    risk_rejected: number;
-    orders_submitted: number;
-    positions_closed: number;
-    closed_pnl: number;
-  };
-  symbols: {
-    symbol: string;
-    regime: string;
-    confidence: number;
-    price: number;
-    thesis: string;
-    proposals: {
-      strategy: string;
-      kill_score: number;
-      survives: boolean;
-      kill_reasons: string[];
-      risk_approved: boolean;
-      risk_reasons: string[];
-      portfolio_approved: boolean;
-      portfolio_reasons: string[];
-      outcome: string;
-      order_id: string;
-    }[];
-  }[];
-  closes: {
-    symbol: string;
-    reason: string;
-    pnl: number;
-    strategy: string;
-  }[];
-}
+import { api, AnalyzeResponse, CorrelationResponse } from '@/lib/api';
 
 export default function MarketPage() {
   const router = useRouter();
   const [data, setData] = useState<AnalyzeResponse | null>(null);
   const [correlation, setCorrelation] = useState<CorrelationResponse | null>(null);
-  const [report, setReport] = useState<CycleReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cycleMessage, setCycleMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const key = localStorage.getItem('killjoy_api_key');
     if (!key) { router.push('/setup'); return; }
     api.analyze().then(setData).catch(e => setError(e.message));
     api.correlation().then(setCorrelation).catch(() => {});
-    api.lastReport().then(r => { if (r.report) setReport(r.report); }).catch(() => {});
   }, [router]);
 
   useEffect(() => {
@@ -80,16 +37,13 @@ export default function MarketPage() {
     return () => clearInterval(id);
   }, []);
 
-  const fetchReport = () => {
-    api.lastReport().then(r => { if (r.report) setReport(r.report); }).catch(() => {});
-  };
-
   const runCycle = async () => {
     setLoading(true);
     setError(null);
+    setCycleMessage(null);
     try {
       await api.paperCycle();
-      fetchReport();
+      setCycleMessage('Cycle complete. View report on Reports page.');
     } catch (e: any) {
       setError(e.message);
     }
@@ -100,9 +54,10 @@ export default function MarketPage() {
     if (!confirm('This will submit REAL paper orders to Alpaca. Continue?')) return;
     setLiveLoading(true);
     setError(null);
+    setCycleMessage(null);
     try {
       await api.liveCycle();
-      fetchReport();
+      setCycleMessage('Live cycle complete. View report on Reports page.');
     } catch (e: any) {
       setError(e.message);
     }
@@ -137,125 +92,11 @@ export default function MarketPage() {
               {marketOpen ? 'Market OPEN' : 'Market CLOSED'}
             </span>
           </div>
+          {cycleMessage && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--green)' }}>{cycleMessage}</div>
+          )}
         </div>
       </div>
-
-      {/* ── Latest Cycle Report ── */}
-      {report && (
-        <div className="card mb-24" style={{ borderColor: 'var(--purple-border)' }}>
-          <div className="card-header">
-            <span className="card-title">Latest Cycle Report</span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span className="badge badge-purple">{report.mode}</span>
-              <span className="badge">{report.llm}</span>
-            </div>
-          </div>
-          <div className="card-body">
-            {/* Plain-English Summary */}
-            <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 16, padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, lineHeight: 1.6 }}>
-              {report.summary_text}
-            </div>
-
-            {/* Stats Row */}
-            <div className="stats-grid" style={{ marginBottom: 16 }}>
-              <div className="stat-card">
-                <div className="stat-label">Analyzed</div>
-                <div className="stat-value">{report.stats.total_analyzed}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">Killed</div>
-                <div className="stat-value" style={{ color: 'var(--red)' }}>{report.stats.killed}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">Orders</div>
-                <div className="stat-value" style={{ color: 'var(--green)' }}>{report.stats.orders_submitted}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">Closed</div>
-                <div className="stat-value">{report.stats.positions_closed}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">Closed P&L</div>
-                <div className="stat-value" style={{ color: report.stats.closed_pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                  ${report.stats.closed_pnl >= 0 ? '+' : ''}{report.stats.closed_pnl.toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            {/* Per-Symbol Breakdown */}
-            {report.symbols.map((s, si) => (
-              <div key={si} style={{ marginBottom: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <strong>{s.symbol}</strong>
-                  <span className={`badge ${s.regime?.includes('up') || s.regime?.includes('bull') ? 'badge-green' : s.regime?.includes('down') || s.regime?.includes('bear') ? 'badge-red' : 'badge-yellow'}`}>
-                    {s.regime}
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    ${(s.price || 0).toFixed(2)} · {(s.confidence * 100).toFixed(0)}% conf
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                  {s.thesis || 'No thesis'}
-                </div>
-                {s.proposals.map((p, pi) => (
-                  <div key={pi} style={{
-                    marginLeft: 12, padding: '6px 10px', marginTop: 4, borderRadius: 6,
-                    background: p.outcome === 'ORDER SUBMITTED' ? 'var(--green-bg)' :
-                      p.outcome === 'KILLED BY AGENT' ? 'var(--red-bg)' : 'var(--bg-secondary)',
-                    fontSize: 12, borderLeft: `3px solid ${
-                      p.outcome === 'ORDER SUBMITTED' ? 'var(--green)' :
-                      p.outcome === 'KILLED BY AGENT' ? 'var(--red)' : 'var(--yellow)'
-                    }`
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <strong>{p.strategy.replace(/_/g, ' ')}</strong>
-                      <span style={{
-                        fontWeight: 600,
-                        color: p.outcome === 'ORDER SUBMITTED' ? 'var(--green)' :
-                          p.outcome === 'KILLED BY AGENT' ? 'var(--red)' : 'var(--yellow)'
-                      }}>
-                        {p.outcome}
-                      </span>
-                      {p.order_id && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>#{p.order_id.slice(0, 8)}</span>}
-                    </div>
-                    {p.kill_reasons.length > 0 && (
-                      <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-                        Kill Agent: {p.kill_reasons[0]}
-                      </div>
-                    )}
-                    {p.risk_reasons.length > 0 && !p.risk_approved && (
-                      <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-                        Risk: {p.risk_reasons[0]}
-                      </div>
-                    )}
-                    {p.portfolio_reasons.length > 0 && !p.portfolio_approved && (
-                      <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-                        Portfolio: {p.portfolio_reasons[0]}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {/* Position Closes */}
-            {report.closes.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>Position Closes</div>
-                {report.closes.map((c, ci) => (
-                  <div key={ci} style={{
-                    padding: '6px 10px', marginBottom: 4, borderRadius: 6,
-                    background: c.pnl >= 0 ? 'var(--green-bg)' : 'var(--red-bg)',
-                    fontSize: 12, borderLeft: `3px solid ${c.pnl >= 0 ? 'var(--green)' : 'var(--red)'}`
-                  }}>
-                    <strong>{c.symbol}</strong> closed — {c.reason} — ${c.pnl >= 0 ? '+' : ''}{c.pnl.toFixed(2)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className="card mb-24">
         <div className="card-header">

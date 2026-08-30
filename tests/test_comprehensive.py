@@ -887,3 +887,72 @@ class TestGraveyard:
         assert len(graves) == 2
         types = {g.strategy_type for g in graves}
         assert types == {"long_call", "long_put"}
+
+
+# ---------------------------------------------------------------------------
+# Cycle Report Builder Tests
+# ---------------------------------------------------------------------------
+
+class TestCycleReportBuilder:
+    def test_build_full_report(self):
+        """Report captures all agent detail fields."""
+        from killjoy.analytics.reports import CycleReportBuilder
+        b = CycleReportBuilder()
+        b.set_summary(mode="paper", run_id="r1", llm="test")
+        b.set_positions_checked(3)
+        b.add_symbol_analysis(
+            "AAPL", "bullish", 0.8, 150.0, "Strong earnings",
+            observations=["RSI oversold", "IV rank low"],
+        )
+        b.add_proposal(
+            symbol="AAPL", strategy="long_call",
+            analyst_score=0.85, analyst_stance="bullish", analyst_thesis="Strong earnings beat",
+            kill_score=0.3, survives=True,
+            kill_reasons=["tested scenario A"], kill_objections=["slightly extended"],
+            kill_critical=[], debate_rounds=2,
+            portfolio_approved=True, portfolio_reasons=["within budget"],
+            risk_approved=True, risk_reasons=[], risk_checks=[
+                {"name": "max_risk_per_trade", "passed": True, "reason": "ok"},
+                {"name": "reward_risk_ratio", "passed": True, "reason": "2.5:1"},
+            ],
+            submitted=True, order_id="ord-123",
+        )
+        b.add_position_close("TSLA", "stop_loss", -45.5, "long_put")
+        report = b.build()
+
+        assert report["stats"]["positions_checked"] == 3
+        assert report["stats"]["orders_submitted"] == 1
+        assert report["stats"]["positions_closed"] == 1
+        assert report["stats"]["closed_pnl"] == -45.5
+        assert len(report["symbols"]) == 1
+
+        s = report["symbols"][0]
+        assert s["observations"] == ["RSI oversold", "IV rank low"]
+        p = s["proposals"][0]
+        assert p["analyst"]["score"] == 0.85
+        assert p["analyst"]["thesis"] == "Strong earnings beat"
+        assert p["kill_agent"]["objections"] == ["slightly extended"]
+        assert p["kill_agent"]["debate_rounds"] == 2
+        assert len(p["risk_engine"]["checks"]) == 2
+        assert p["outcome"] == "ORDER SUBMITTED"
+
+    def test_killed_proposal_summary(self):
+        """Killed proposal shows objection counts in summary."""
+        from killjoy.analytics.reports import CycleReportBuilder
+        b = CycleReportBuilder()
+        b.set_summary(mode="paper", run_id="r2", llm="test")
+        b.add_symbol_analysis("SPY", "neutral", 0.5, 450.0, "Sideways")
+        b.add_proposal(
+            symbol="SPY", strategy="iron_condor",
+            analyst_score=0.5, analyst_stance="neutral", analyst_thesis="Range-bound",
+            kill_score=0.8, survives=False,
+            kill_reasons=["low IV"], kill_objections=["IV too low", "max loss risky"],
+            kill_critical=["reward below 1:1"], debate_rounds=3,
+            portfolio_approved=True, portfolio_reasons=[],
+            risk_approved=True, risk_reasons=[],
+            submitted=False,
+        )
+        report = b.build()
+        assert report["stats"]["killed"] == 1
+        assert "2 objection(s)" in report["summary_text"]
+        assert "1 critical" in report["summary_text"]

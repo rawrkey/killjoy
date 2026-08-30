@@ -4,6 +4,23 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
+interface AgentReport {
+  analyst: { score: number; stance: string; thesis: string };
+  kill_agent: { score: number; survives: boolean; reasons: string[]; objections: string[]; critical_failures: string[]; debate_rounds: number };
+  portfolio: { approved: boolean; reasons: string[] };
+  risk_engine: { approved: boolean; reasons: string[]; checks: { name: string; passed: boolean; reason: string }[] };
+}
+
+interface ProposalReport {
+  strategy: string;
+  outcome: string;
+  order_id: string;
+  analyst: { score: number; stance: string; thesis: string };
+  kill_agent: { score: number; survives: boolean; reasons: string[]; objections: string[]; critical_failures: string[]; debate_rounds: number };
+  portfolio: { approved: boolean; reasons: string[] };
+  risk_engine: { approved: boolean; reasons: string[]; checks: { name: string; passed: boolean; reason: string }[] };
+}
+
 interface CycleReport {
   timestamp: string;
   mode: string;
@@ -16,6 +33,7 @@ interface CycleReport {
     portfolio_rejected: number;
     risk_rejected: number;
     orders_submitted: number;
+    positions_checked: number;
     positions_closed: number;
     closed_pnl: number;
   };
@@ -25,25 +43,82 @@ interface CycleReport {
     confidence: number;
     price: number;
     thesis: string;
-    proposals: {
-      strategy: string;
-      kill_score: number;
-      survives: boolean;
-      kill_reasons: string[];
-      risk_approved: boolean;
-      risk_reasons: string[];
-      portfolio_approved: boolean;
-      portfolio_reasons: string[];
-      outcome: string;
-      order_id: string;
-    }[];
+    observations: string[];
+    proposals: ProposalReport[];
   }[];
-  closes: {
-    symbol: string;
-    reason: string;
-    pnl: number;
-    strategy: string;
-  }[];
+  closes: { symbol: string; reason: string; pnl: number; strategy: string }[];
+}
+
+function AgentPipeline({ p }: { p: ProposalReport }) {
+  const color = p.outcome === 'ORDER SUBMITTED' ? 'var(--green)' : p.outcome === 'KILLED BY AGENT' ? 'var(--red)' : 'var(--yellow)';
+  return (
+    <div style={{ marginLeft: 12, marginTop: 6, padding: 8, borderRadius: 6, border: `1px solid ${color}22`, background: `${color}08` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <strong style={{ fontSize: 13 }}>{p.strategy.replace(/_/g, ' ')}</strong>
+        <span style={{ fontWeight: 700, color, fontSize: 12 }}>{p.outcome}</span>
+        {p.order_id && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>#{p.order_id.slice(0, 8)}</span>}
+      </div>
+
+      {/* Pipeline flow */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+        {/* Analyst */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+          <span style={{ minWidth: 70, color: 'var(--text-muted)', fontWeight: 600 }}>Analyst</span>
+          <span>{(p.analyst.score * 100).toFixed(0)}% conf · {p.analyst.stance}</span>
+        </div>
+        {p.analyst.thesis && (
+          <div style={{ marginLeft: 76, color: 'var(--text-secondary)', fontStyle: 'italic' }}>&ldquo;{p.analyst.thesis}&rdquo;</div>
+        )}
+
+        {/* Kill Agent */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+          <span style={{ minWidth: 70, color: 'var(--red)', fontWeight: 600 }}>Kill Agent</span>
+          <span>score: {(p.kill_agent.score * 100).toFixed(0)}% · {p.kill_agent.survives ? 'survived' : 'killed'} · {p.kill_agent.debate_rounds} debate rounds</span>
+        </div>
+        {p.kill_agent.reasons.length > 0 && (
+          <div style={{ marginLeft: 76, color: 'var(--text-secondary)' }}>
+            Reasons: {p.kill_agent.reasons.join('; ')}
+          </div>
+        )}
+        {p.kill_agent.objections.length > 0 && (
+          <div style={{ marginLeft: 76, color: 'var(--red)' }}>
+            Objections: {p.kill_agent.objections.join('; ')}
+          </div>
+        )}
+        {p.kill_agent.critical_failures.length > 0 && (
+          <div style={{ marginLeft: 76, color: 'var(--red)', fontWeight: 600 }}>
+            Critical: {p.kill_agent.critical_failures.join('; ')}
+          </div>
+        )}
+
+        {/* Portfolio */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <span style={{ minWidth: 70, color: p.portfolio.approved ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>Portfolio</span>
+          <span>{p.portfolio.approved ? 'approved' : 'rejected'}{p.portfolio.reasons.length > 0 ? ` — ${p.portfolio.reasons.join('; ')}` : ''}</span>
+        </div>
+
+        {/* Risk Engine */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <span style={{ minWidth: 70, color: p.risk_engine.approved ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>Risk</span>
+          <span>{p.risk_engine.approved ? 'approved' : 'rejected'}{p.risk_engine.reasons.length > 0 ? ` — ${p.risk_engine.reasons.join('; ')}` : ''}</span>
+        </div>
+        {p.risk_engine.checks.length > 0 && (
+          <div style={{ marginLeft: 76, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {p.risk_engine.checks.map((c, i) => (
+              <span key={i} style={{
+                fontSize: 10, padding: '1px 5px', borderRadius: 3,
+                background: c.passed ? 'var(--green-bg)' : 'var(--red-bg)',
+                color: c.passed ? 'var(--green)' : 'var(--red)',
+                border: `1px solid ${c.passed ? 'var(--green)' : 'var(--red)'}33`,
+              }}>
+                {c.name.replace(/_/g, ' ')}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ReportCard({ report }: { report: CycleReport }) {
@@ -56,11 +131,7 @@ function ReportCard({ report }: { report: CycleReport }) {
 
   return (
     <div className="card mb-16" style={{ borderColor: report.mode === 'live' ? 'var(--green-border)' : 'var(--border)' }}>
-      <div
-        className="card-header"
-        style={{ cursor: 'pointer' }}
-        onClick={() => setExpanded(!expanded)}
-      >
+      <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => setExpanded(!expanded)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 160 }}>{timeStr}</span>
           <span className={`badge ${report.mode === 'live' ? 'badge-green' : 'badge-yellow'}`}>
@@ -73,9 +144,12 @@ function ReportCard({ report }: { report: CycleReport }) {
           <span>{report.stats.total_analyzed} analyzed</span>
           <span style={{ color: 'var(--red)' }}>{report.stats.killed} killed</span>
           <span style={{ color: 'var(--green)' }}>{report.stats.orders_submitted} orders</span>
-          <span style={{ color: report.stats.closed_pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            ${report.stats.closed_pnl >= 0 ? '+' : ''}{report.stats.closed_pnl.toFixed(2)}
-          </span>
+          {report.stats.positions_closed > 0 && <span>{report.stats.positions_closed} closed</span>}
+          {report.stats.closed_pnl !== 0 && (
+            <span style={{ color: report.stats.closed_pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+              ${report.stats.closed_pnl >= 0 ? '+' : ''}{report.stats.closed_pnl.toFixed(2)}
+            </span>
+          )}
           <span style={{ color: 'var(--text-muted)' }}>{expanded ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -89,9 +163,9 @@ function ReportCard({ report }: { report: CycleReport }) {
 
           {/* Per-Symbol */}
           {report.symbols.map((s, si) => (
-            <div key={si} style={{ marginBottom: 10, padding: 10, border: '1px solid var(--border)', borderRadius: 8 }}>
+            <div key={si} style={{ marginBottom: 14, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <strong>{s.symbol}</strong>
+                <strong style={{ fontSize: 14 }}>{s.symbol}</strong>
                 <span className={`badge ${s.regime?.includes('up') || s.regime?.includes('bull') ? 'badge-green' : s.regime?.includes('down') || s.regime?.includes('bear') ? 'badge-red' : 'badge-yellow'}`}>
                   {s.regime}
                 </span>
@@ -99,34 +173,17 @@ function ReportCard({ report }: { report: CycleReport }) {
                   ${(s.price || 0).toFixed(2)} · {(s.confidence * 100).toFixed(0)}% conf
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, fontStyle: 'italic' }}>
                 {s.thesis || 'No thesis'}
               </div>
-              {s.proposals.map((p, pi) => (
-                <div key={pi} style={{
-                  marginLeft: 12, padding: '4px 8px', marginTop: 3, borderRadius: 4,
-                  background: p.outcome === 'ORDER SUBMITTED' ? 'var(--green-bg)' :
-                    p.outcome === 'KILLED BY AGENT' ? 'var(--red-bg)' : 'var(--bg-secondary)',
-                  fontSize: 11, borderLeft: `3px solid ${
-                    p.outcome === 'ORDER SUBMITTED' ? 'var(--green)' :
-                    p.outcome === 'KILLED BY AGENT' ? 'var(--red)' : 'var(--yellow)'
-                  }`
-                }}>
-                  <strong>{p.strategy.replace(/_/g, ' ')}</strong>{' '}
-                  <span style={{
-                    color: p.outcome === 'ORDER SUBMITTED' ? 'var(--green)' :
-                      p.outcome === 'KILLED BY AGENT' ? 'var(--red)' : 'var(--yellow)'
-                  }}>
-                    {p.outcome}
-                  </span>
-                  {p.order_id && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>#{p.order_id.slice(0, 8)}</span>}
-                  {p.kill_reasons.length > 0 && (
-                    <div style={{ color: 'var(--text-muted)', marginTop: 1 }}>Kill: {p.kill_reasons[0]}</div>
-                  )}
-                  {p.risk_reasons.length > 0 && !p.risk_approved && (
-                    <div style={{ color: 'var(--text-muted)', marginTop: 1 }}>Risk: {p.risk_reasons[0]}</div>
-                  )}
+              {s.observations && s.observations.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                  Observations: {s.observations.join('; ')}
                 </div>
+              )}
+
+              {s.proposals.map((p, pi) => (
+                <AgentPipeline key={pi} p={p} />
               ))}
             </div>
           ))}
@@ -134,12 +191,12 @@ function ReportCard({ report }: { report: CycleReport }) {
           {/* Closes */}
           {report.closes.length > 0 && (
             <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary)' }}>Position Closes</div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>Position Closes</div>
               {report.closes.map((c, ci) => (
                 <div key={ci} style={{
-                  padding: '4px 8px', marginBottom: 3, borderRadius: 4,
+                  padding: '6px 10px', marginBottom: 4, borderRadius: 6,
                   background: c.pnl >= 0 ? 'var(--green-bg)' : 'var(--red-bg)',
-                  fontSize: 11, borderLeft: `3px solid ${c.pnl >= 0 ? 'var(--green)' : 'var(--red)'}`
+                  fontSize: 12, borderLeft: `3px solid ${c.pnl >= 0 ? 'var(--green)' : 'var(--red)'}`
                 }}>
                   <strong>{c.symbol}</strong> — {c.reason} — ${c.pnl >= 0 ? '+' : ''}{c.pnl.toFixed(2)}
                 </div>
