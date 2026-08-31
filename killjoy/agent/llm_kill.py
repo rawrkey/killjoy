@@ -53,14 +53,16 @@ KILL_THRESHOLD = Decimal("0.55")
 
 class LLMKillOutput(BaseModel):
     """Structured LLM output for kill decision."""
-    kill_score: float = Field(ge=0, le=1, description="0=trade is dangerous, 1=trade is safe")
-    survives: bool = Field(description="Whether the trade should proceed")
-    confidence: float = Field(ge=0, le=1, description="Confidence in the kill decision")
+    kill_score: float = Field(default=0.5, ge=0, le=1, alias="score", description="0=trade is dangerous, 1=trade is safe")
+    survives: bool = Field(default=True, description="Whether the trade should proceed")
+    confidence: float = Field(default=0.5, ge=0, le=1, alias="confidence_level", description="Confidence in the kill decision")
     objections: list[dict] = Field(default_factory=list, description="List of {category, severity, reasoning, counterfactual}")
     critical_failures: list[str] = Field(default_factory=list, description="Fatal issues that should kill the trade")
     counterfactual: str = Field(default="", description="What would need to change for this trade to survive")
     recommendation: str = Field(default="", description="kill, marginal, or approve")
     analysis: str = Field(default="", description="Overall analysis")
+
+    model_config = {"populate_by_name": True}
 
 
 KILL_SYSTEM_PROMPT = """You are KILLJOY's Kill Agent. Your EXPLICIT OBJECTIVE is to DISPROVE every trade proposal.

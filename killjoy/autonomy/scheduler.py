@@ -170,11 +170,14 @@ class KilljoyScheduler:
                 logger.warning("Error evaluating position %s: %s", symbol, e)
 
         # 2. Scan each underlying
-        for symbol in self._universe:
+        for i, symbol in enumerate(self._universe):
             try:
                 self._scan_symbol(symbol, results)
             except Exception as e:
                 logger.warning("Error scanning %s: %s", symbol, e)
+            # Rate limit protection: pause between LLM calls
+            if i < len(self._universe) - 1 and self._llm and self._llm.is_available:
+                time.sleep(2)
 
         logger.info(
             "RUN %s complete: %d proposals, %d killed, %d portfolio-rejected, %d risk-rejected, %d submitted, %d rejections recorded",

@@ -29,14 +29,16 @@ logger = logging.getLogger(__name__)
 
 class LLMAnalystOutput(BaseModel):
     """Structured LLM output for market analysis."""
-    regime: str = Field(description="Market regime: strong_uptrend, uptrend, sideways, downtrend, strong_downtrend, high_volatility, low_volatility")
-    confidence: float = Field(ge=0, le=1, description="Confidence in the analysis")
-    thesis: str = Field(description="Market thesis explanation")
+    regime: str = Field(default="sideways", alias="regime_assessment", description="Market regime")
+    confidence: float = Field(default=0.5, ge=0, le=1, alias="confidence_level", description="Confidence")
+    thesis: str = Field(default="", description="Market thesis explanation")
     observations: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     options_context: str = Field(default="", description="Options-specific market context")
-    sentiment_signal: str = Field(default="neutral", description="bullish, bearish, neutral")
+    sentiment_signal: str = Field(default="neutral", alias="sentiment", description="bullish, bearish, neutral")
     key_levels: str = Field(default="", description="Key support/resistance levels mentioned")
+
+    model_config = {"populate_by_name": True}
 
 
 ANALYST_SYSTEM_PROMPT = """You are KILLJOY's Market Analyst agent. You analyze stock market conditions and generate actionable trading theses.
@@ -94,7 +96,7 @@ def analyze_market_llm(
         messages,
         schema=LLMAnalystOutput,
         temperature=0.3,
-        max_tokens=512,
+        max_tokens=1024,
     )
 
     if output is None:

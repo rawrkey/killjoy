@@ -26,12 +26,14 @@ logger = logging.getLogger(__name__)
 
 class LLMStrategyOutput(BaseModel):
     """Structured LLM output for strategy selection."""
-    selected_strategy: str = Field(description="Selected strategy type")
-    reasoning: str = Field(description="Why this strategy was selected")
-    confidence_adjustment: float = Field(default=0, ge=-0.3, le=0.3, description="Confidence adjustment based on analysis")
+    selected_strategy: str = Field(default="", alias="strategy", description="Selected strategy type")
+    reasoning: str = Field(default="", description="Why this strategy was selected")
+    confidence_adjustment: float = Field(default=0, ge=-0.3, le=0.3, alias="conf_adj", description="Confidence adjustment")
     risk_notes: str = Field(default="", description="Key risks for this strategy")
-    alternative_considered: str = Field(default="", description="Alternative strategy considered and why rejected")
-    adjustments: dict[str, str] = Field(default_factory=dict, description="Suggested adjustments to proposal parameters")
+    alternative_considered: str = Field(default="", alias="alternative", description="Alternative considered")
+    adjustments: dict[str, str] = Field(default_factory=dict, description="Suggested adjustments")
+
+    model_config = {"populate_by_name": True}
 
 
 STRATEGY_SYSTEM_PROMPT = """You are KILLJOY's Strategy Agent. You evaluate options strategy proposals for a given market thesis.
