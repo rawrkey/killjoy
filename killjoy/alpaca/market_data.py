@@ -72,10 +72,15 @@ class MarketDataClient:
             if hasattr(snap, "prev_daily_bar") and snap.prev_daily_bar:
                 prev = snap.prev_daily_bar
                 result["prev_close"] = Decimal(str(getattr(prev, "close", 0)))
-                if result.get("last_trade") and result.get("prev_close"):
-                    result["change_pct"] = (
-                        (result["last_trade"] - result["prev_close"]) / result["prev_close"] * 100
-                    )
+            # Compute change_pct from available data
+            if result.get("last_trade") and result.get("prev_close") and result["prev_close"] > 0:
+                result["change_pct"] = (
+                    (result["last_trade"] - result["prev_close"]) / result["prev_close"] * 100
+                )
+            elif result.get("last_trade") and result.get("open") and result["open"] > 0:
+                result["change_pct"] = (
+                    (result["last_trade"] - result["open"]) / result["open"] * 100
+                )
             return result
         except Exception as e:
             logger.warning("Failed to get snapshot for %s: %s", symbol, e)
