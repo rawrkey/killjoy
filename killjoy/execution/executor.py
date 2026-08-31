@@ -72,20 +72,15 @@ class Executor:
         if self._journal:
             open_trades = self._journal.get_open_trades()
             for trade in open_trades:
-                if (
-                    trade.underlying == proposal.underlying
-                    and trade.strategy == proposal.strategy.value
-                    and trade.order_result is not None
-                ):
+                if trade.underlying == proposal.underlying and trade.order_result is not None:
+                    # Block if same underlying already has an open trade
                     logger.warning(
-                        "Duplicate order blocked via journal: %s %s (trade %s already has order %s)",
-                        proposal.underlying, proposal.strategy.value,
-                        trade.trade_id,
-                        trade.order_result.order_id if trade.order_result else "unknown",
+                        "Duplicate order blocked via journal: %s already has open trade %s",
+                        proposal.underlying, trade.trade_id,
                     )
                     return OrderResult(
                         symbol=proposal.underlying,
-                        error=f"Duplicate: {trade.strategy} already open (trade {trade.trade_id})",
+                        error=f"Duplicate: {trade.underlying} already open (trade {trade.trade_id})",
                         status="duplicate_blocked",
                     )
 
@@ -161,9 +156,9 @@ class Executor:
         }
 
     def _calculate_quantity(self, proposal: TradeProposal, buying_power: Decimal) -> int:
-        """Calculate how many contracts to buy based on buying power.
+        """Calculate how many contracts to buy based on buying power and max risk.
 
-        Uses 5% of buying power per trade, max 20 contracts.
+        Uses 5% of buying power per trade, but caps at MAX_RISK_PER_TRADE / max_loss_per_contract.
         """
         if not proposal.legs:
             return 0
@@ -179,7 +174,14 @@ class Executor:
         if budget <= 0:
             return 0
         qty = int(budget / cost_per_contract)
-        return min(qty, 20)
+
+        # Cap by MAX_RISK_PER_TRADE ($1000) / max_loss_per_contract
+        max_risk = Decimal("1000")
+        if proposal.max_loss > 0:
+            max_risk_qty = int(max_risk / proposal.max_loss)
+            qty = min(qty, max_risk_qty)
+
+        return min(qty, 10)
 
     def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):
         """Build an Alpaca order request from a validated proposal."""
