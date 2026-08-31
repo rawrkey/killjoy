@@ -128,6 +128,46 @@ class KilljoyScheduler:
         results["positions_closed"] = 0
         self._report.set_positions_checked(len(open_trades))
 
+        # 1a. EOD strategy: sell profitable positions before close
+        try:
+            from zoneinfo import ZoneInfo
+            et = datetime.now(ZoneInfo("America/New_York"))
+            market_close = et.replace(hour=16, minute=0, second=0, microsecond=0)
+            minutes_to_close = (market_close - et).total_seconds() / 60
+
+            if 0 <= minutes_to_close <= 5:
+                # Near market close — EOD logic
+                total_pnl = sum(
+                    float(getattr(p, "unrealized_pl", 0) or 0)
+                    for p in self._portfolio._positions
+                )
+                logger.info("EOD: %.0f min to close, total P&L: $%.2f", minutes_to_close, total_pnl)
+
+                for pos_snap in list(self._portfolio._positions):
+                    sym_pnl = float(getattr(pos_snap, "unrealized_pl", 0) or 0)
+                    should_close = (total_pnl > 0) or (sym_pnl > 0)
+                    if should_close:
+                        logger.info("EOD CLOSE %s: P&L $%.2f (portfolio: $%.2f)", pos_snap.symbol, sym_pnl, total_pnl)
+                        if not self._dry_run and self._executor:
+                            order_result = self._executor.close_position(pos_snap.symbol)
+                            if order_result.status != "failed":
+                                # Find matching journal entry and record exit
+                                for trade in open_trades:
+                                    if trade.underlying == pos_snap.symbol:
+                                        self._journal.record_exit(trade.trade_id, sym_pnl, "closed_eod", order_result.order_id)
+                                        break
+                                results["positions_closed"] += 1
+                                self._event_log.log("eod_close", run_id, symbol=pos_snap.symbol, data={
+                                    "pnl": sym_pnl,
+                                    "portfolio_pnl": total_pnl,
+                                })
+                        else:
+                            logger.info("EOD DRY RUN: Would close %s", pos_snap.symbol)
+                            results["positions_closed"] += 1
+                return results
+        except Exception as e:
+            logger.debug("EOD check skipped: %s", e)
+
         for trade in open_trades:
             try:
                 symbol = trade.underlying
