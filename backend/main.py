@@ -694,7 +694,7 @@ def autonomous_toggle():
 def cron_run():
     """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
 
-    External cron services (cron-job.org, GitHub Actions) ping this every 15 min.
+    External cron services (cron-job.org, GitHub Actions) ping this every 30 min.
     """
     global _autonomous_enabled
 

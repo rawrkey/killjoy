@@ -95,9 +95,9 @@ export default function Dashboard() {
             <div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 {autonomous
-                  ? 'Auto-trading every 15 min during market hours (9:30 AM – 4:00 PM ET)'
+                  ? 'Auto-trading every 30 min during market hours (9:30 AM – 4:00 PM ET)'
                   : marketOpen
-                    ? 'Click to enable auto-trading. Requires cron-job.org to ping every 15 min.'
+                    ? 'Click to enable auto-trading. Requires cron-job.org to ping every 30 min.'
                     : 'Market is closed. Enable during market hours (Mon-Fri 9:30 AM – 4:00 PM ET).'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>

@@ -53,7 +53,7 @@ Every cycle also monitors existing positions and auto-sells when thresholds are 
 KILLJOY can run fully autonomously — no browser tab needed.
 
 1. **Enable on Dashboard** — Click "Start Auto-Trading" during market hours
-2. **Cron job pings backend** every 15 minutes via cron-job.org
+2. **Cron job pings backend** every 30 minutes via cron-job.org
 3. **Backend checks market hours** — only runs Mon-Fri 9:30 AM – 4:00 PM ET
 4. **Each cycle**: closes winners/losers → scans for new entries → submits orders
 5. **Disable anytime** — Click "Stop Auto-Trading" or disable the cron job
@@ -198,7 +198,7 @@ Any OpenAI-compatible endpoint works: OpenAI, OmniRouter, Ollama, vLLM, LiteLLM.
 1. Create free account at [cron-job.org](https://cron-job.org)
 2. Create cron job:
    - URL: `<your-render-url>/api/cron/run`
-   - Schedule: `*/15 * * * *` (every 15 minutes)
+   - Schedule: `*/30 * * * *` (every 30 minutes)
 3. Click "Start Auto-Trading" on the dashboard
 
 ---
