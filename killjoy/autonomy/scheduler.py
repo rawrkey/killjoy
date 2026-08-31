@@ -290,7 +290,7 @@ class KilljoyScheduler:
             symbol,
             thesis.regime.value,
             thesis.confidence,
-            "LLM" if (self._llm and self._llm.is_available) else "DETERMINISTIC",
+            thesis.source.upper(),
         )
         self._report.add_symbol_analysis(
             symbol=symbol,

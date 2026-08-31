@@ -111,6 +111,7 @@ class MarketThesis(BaseModel):
     trend_strength: Decimal = Decimal("0")
     momentum: Decimal = Decimal("0")
     volume_signal: str = "neutral"
+    source: str = "deterministic"  # "llm" or "deterministic"
 
 
 class TradeProposal(BaseModel):

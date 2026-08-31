@@ -32,7 +32,10 @@ class LongPutStrategy(StrategyBase):
 
         debit = put.mid if put.mid > 0 else put.ask
         max_loss = debit * 100
-        max_profit = put.strike * 100 - max_loss  # intrinsic at zero
+        # Realistic max profit: 50% of intrinsic if stock drops to nearby support
+        # Cap at 5x max_loss — stock going to $0 is not a realistic scenario
+        theoretical_profit = put.strike * 100 - max_loss
+        max_profit = min(theoretical_profit, max_loss * 5)
 
         leg = self._build_leg(put, "buy")
         reward_risk = max_profit / max_loss if max_loss > 0 else Decimal("0")

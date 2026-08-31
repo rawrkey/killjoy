@@ -33,7 +33,9 @@ class LongCallStrategy(StrategyBase):
 
         debit = call.mid if call.mid > 0 else call.ask
         max_loss = debit * 100
-        max_profit = Decimal("999")  # theoretically unlimited
+        # Realistic max profit: cap at 5x max_loss for R/R calculation
+        # "Unlimited" upside doesn't help with risk sizing
+        max_profit = max_loss * 5
 
         leg = self._build_leg(call, "buy")
         reward_risk = max_profit / max_loss if max_loss > 0 else Decimal("0")

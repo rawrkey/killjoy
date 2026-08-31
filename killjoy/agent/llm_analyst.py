@@ -104,7 +104,9 @@ def analyze_market_llm(
         return features
 
     # Step 3: Merge LLM reasoning with deterministic features
-    return _merge_analysis(features, output)
+    result = _merge_analysis(features, output)
+    result.source = "llm"
+    return result
 
 
 def _build_feature_context(underlying: str, features: MarketThesis) -> str:
