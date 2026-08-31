@@ -147,7 +147,7 @@ def kill_test_llm(
     # Step 1: Deterministic pre-screening
     deterministic_result = deterministic_kill(proposal, thesis, portfolio_context)
 
-    # If deterministic already kills it hard, don't waste LLM tokens
+    # If deterministic kills it, trust it
     if deterministic_result.kill_score < Decimal("0.2"):
         logger.info("Deterministic pre-screen killed %s %s (score: %s)", proposal.underlying, proposal.strategy.value, deterministic_result.kill_score)
         return KillDecision(
@@ -161,7 +161,12 @@ def kill_test_llm(
             recommendation="kill",
         )
 
-    # Step 2: LLM adversarial analysis
+    # If deterministic passes, trust it — don't let LLM override
+    if deterministic_result.survives:
+        logger.info("Deterministic PASS for %s %s (score: %s) — skipping LLM kill", proposal.underlying, proposal.strategy.value, deterministic_result.kill_score)
+        return _enrich_with_model_fields(deterministic_result)
+
+    # Step 2: LLM adversarial analysis (only if deterministic is marginal)
     if llm is None or not llm.is_available:
         logger.debug("LLM unavailable for kill test, using deterministic")
         return _enrich_with_model_fields(deterministic_result)
