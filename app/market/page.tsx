@@ -85,7 +85,7 @@ export default function MarketPage() {
             >
               {liveLoading ? <><span className="spinner" /> Executing...</> : 'Run LIVE Cycle'}
             </button>
-            <button className="btn btn-secondary" onClick={() => api.analyze().then(setData)}>
+            <button className="btn btn-secondary" onClick={() => api.analyze().then(setData).catch(e => setError(e.message))}>
               Refresh Analysis
             </button>
             <span style={{ fontSize: 11, color: marketOpen ? 'var(--green)' : 'var(--text-muted)', marginLeft: 4 }}>

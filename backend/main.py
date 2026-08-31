@@ -180,25 +180,18 @@ def orders():
 
 @app.get("/api/analyze")
 def analyze():
-    """Analyze market for top 5 symbols using LLM-enhanced agents."""
+    """Analyze market for top 5 symbols using deterministic agents (fast, no LLM)."""
     settings = get_settings()
     from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
     from killjoy.agent.llm_analyst import analyze_market_llm
     from killjoy.llm.provider import LLMProvider
 
     market_data = MarketDataClient(settings)
-    llm = LLMProvider(
-        api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
-        base_url=settings.killjoy_llm_base_url,
-        model=settings.killjoy_llm_model,
-        temperature=settings.killjoy_llm_temperature,
-        max_tokens=settings.killjoy_llm_max_tokens,
-    )
-    llm_status = "active" if llm.is_available else "deterministic"
+    # Use None for LLM to skip LLM calls — deterministic is instant
     results = []
     for symbol in DEFAULT_UNIVERSE[:5]:
         try:
-            thesis = analyze_market_llm(market_data, symbol, llm)
+            thesis = analyze_market_llm(market_data, symbol, None)
             results.append({
                 "symbol": symbol,
                 "regime": thesis.regime.value,
@@ -206,11 +199,11 @@ def analyze():
                 "price": _decimal_to_str(thesis.current_price),
                 "thesis": thesis.thesis,
                 "observations": thesis.observations[:3] if thesis.observations else [],
-                "llm": llm_status,
+                "llm": "deterministic",
             })
         except Exception as e:
             results.append({"symbol": symbol, "error": str(e)})
-    return {"analyses": results, "llm": llm_status}
+    return {"analyses": results, "llm": "deterministic"}
 
 
 @app.get("/api/paper-cycle")
