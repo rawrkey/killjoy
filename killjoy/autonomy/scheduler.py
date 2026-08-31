@@ -197,7 +197,7 @@ class KilljoyScheduler:
                 logger.warning("Error scanning %s: %s", symbol, e)
             # Rate limit protection: pause between LLM calls
             if i < len(self._universe) - 1 and self._llm and self._llm.is_available:
-                time.sleep(4)
+                time.sleep(1)
 
         logger.info(
             "RUN %s complete: %d proposals, %d killed, %d portfolio-rejected, %d risk-rejected, %d submitted, %d rejections recorded",
