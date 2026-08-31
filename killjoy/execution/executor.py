@@ -161,11 +161,9 @@ class Executor:
         }
 
     def _calculate_quantity(self, proposal: TradeProposal, buying_power: Decimal) -> int:
-        """Calculate how many contracts to buy based on buying power and risk limits.
+        """Calculate how many contracts to buy based on buying power.
 
-        Uses:
-        - 5% of buying power per trade (capped at $2000 max risk per trade)
-        - Minimum 1 contract, max 10
+        Uses 5% of buying power per trade, max 20 contracts.
         """
         if not proposal.legs:
             return 0
@@ -176,16 +174,10 @@ class Executor:
         if cost_per_contract <= 0:
             return 0
 
-        # Max risk per trade: 5% of buying power, capped at $2000
-        max_risk = min(buying_power * Decimal("0.05"), Decimal("2000"))
-
-        # Max from buying power (use 10% per trade)
-        max_from_bp = buying_power * Decimal("0.10")
-
-        # Use the lower of both
-        available = min(max_risk, max_from_bp)
-        qty = int(available / cost_per_contract)
-        return max(1, min(qty, 10))
+        # 5% of buying power per trade
+        budget = buying_power * Decimal("0.05")
+        qty = int(budget / cost_per_contract)
+        return max(1, min(qty, 20))
 
     def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):
         """Build an Alpaca order request from a validated proposal."""

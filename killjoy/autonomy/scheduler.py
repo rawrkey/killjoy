@@ -177,7 +177,7 @@ class KilljoyScheduler:
                 logger.warning("Error scanning %s: %s", symbol, e)
             # Rate limit protection: pause between LLM calls
             if i < len(self._universe) - 1 and self._llm and self._llm.is_available:
-                time.sleep(2)
+                time.sleep(4)
 
         logger.info(
             "RUN %s complete: %d proposals, %d killed, %d portfolio-rejected, %d risk-rejected, %d submitted, %d rejections recorded",
@@ -298,6 +298,17 @@ class KilljoyScheduler:
             "critical_count": len(kill_decision.critical_failures),
             "debate_rounds": len(kill_decision.debate_transcript),
         })
+
+        # Kill check — if killed, reject and move on
+        if not kill_decision.survives:
+            self._record_rejection(
+                proposal, thesis, kill_decision,
+                rejection_reason="kill_agent",
+                results=results,
+            )
+            logger.info("KILLED: %s %s (score: %.2f)", proposal.underlying, proposal.strategy.value, kill_decision.kill_score)
+            results["proposals_killed"] += 1
+            return
 
         # Portfolio check
         portfolio_check = self._portfolio.evaluate_trade(proposal)
