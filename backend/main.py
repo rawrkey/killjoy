@@ -746,6 +746,11 @@ def cron_run():
         pass
 
     # Market is open — run live cycle
+    # Suppress log output to stdout so cron-job.org doesn't hit its output size limit
+    import logging as _logging
+    _prev_level = logger.getEffectiveLevel()
+    for name in (None, "killjoy", "httpx", "httpcore", "urllib3"):
+        _logging.getLogger(name).setLevel(_logging.WARNING)
     try:
         result = live_cycle()
         r = result.get("results", {}) if isinstance(result, dict) else {}
@@ -759,3 +764,6 @@ def cron_run():
     except Exception as e:
         logger.error("CRON cycle failed: %s", e)
         return {"ok": False, "err": str(e)[:100]}
+    finally:
+        for name in (None, "killjoy", "httpx", "httpcore", "urllib3"):
+            _logging.getLogger(name).setLevel(_prev_level)
