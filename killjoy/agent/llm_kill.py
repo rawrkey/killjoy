@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-KILL_THRESHOLD = Decimal("0.55")
+KILL_THRESHOLD = Decimal("0.30")
 
 
 class LLMKillOutput(BaseModel):

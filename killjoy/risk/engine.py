@@ -13,14 +13,14 @@ from killjoy.agent.models import RiskCheck, RiskDecision, TradeProposal
 logger = logging.getLogger(__name__)
 
 # ─── Configurable Risk Limits ────────────────────────────────────────────────
-MAX_RISK_PER_TRADE = Decimal("500")         # max dollars at risk per trade
+MAX_RISK_PER_TRADE = Decimal("1000")        # max dollars at risk per trade
 MAX_DAILY_LOSS = Decimal("1000")            # max daily portfolio loss
 MAX_OPTIONS_EXPOSURE = Decimal("10000")     # max total options exposure
 MAX_SINGLE_UNDERLYING_EXPOSURE = Decimal("3000")
 MIN_REWARD_RISK = Decimal("1.5")            # minimum reward/risk ratio (was 1.0)
 MIN_BUYING_POWER = Decimal("500")           # minimum buying power required
 MAX_POSITIONS = 10                          # max concurrent positions
-MIN_CONFIDENCE = Decimal("0.4")             # minimum proposal confidence (was 0.3)
+MIN_CONFIDENCE = Decimal("0.25")             # minimum proposal confidence
 MAX_IV_RANK = Decimal("70")                 # don't buy options when IV rank > 70%
 
 

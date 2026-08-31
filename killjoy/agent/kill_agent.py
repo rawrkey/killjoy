@@ -28,7 +28,7 @@ from killjoy.agent.models import KillDecision, MarketThesis, TradeProposal
 logger = logging.getLogger(__name__)
 
 # Threshold: kill_score below this = trade is rejected
-KILL_THRESHOLD = Decimal("0.55")  # Raised from 0.40 — be more selective
+KILL_THRESHOLD = Decimal("0.30")
 
 
 def kill_test(
@@ -44,17 +44,17 @@ def kill_test(
     score = Decimal("1.0")  # Start at 1.0 (safe), deduct for each issue
 
     # 1. Check confidence
-    if proposal.confidence < Decimal("0.4"):
+    if proposal.confidence < Decimal("0.2"):
         kill_reasons.append(f"Low confidence: {proposal.confidence:.2f}")
-        score -= Decimal("0.25")
+        score -= Decimal("0.15")
 
     # 2. Check reward/risk
-    if proposal.reward_risk < Decimal("1.5"):
+    if proposal.reward_risk < Decimal("1.0"):
         kill_reasons.append(f"Poor reward/risk ratio: {proposal.reward_risk:.2f}")
-        score -= Decimal("0.25")
-    elif proposal.reward_risk < Decimal("2.0"):
-        kill_reasons.append(f"Marginal reward/risk: {proposal.reward_risk:.2f}")
         score -= Decimal("0.15")
+    elif proposal.reward_risk < Decimal("1.5"):
+        kill_reasons.append(f"Marginal reward/risk: {proposal.reward_risk:.2f}")
+        score -= Decimal("0.05")
 
     # 3. Check max loss relative to proposal
     if proposal.max_loss > Decimal("500"):
