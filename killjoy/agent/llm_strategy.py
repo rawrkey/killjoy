@@ -36,28 +36,25 @@ class LLMStrategyOutput(BaseModel):
 
 STRATEGY_SYSTEM_PROMPT = """You are KILLJOY's Strategy Agent. You evaluate options strategy proposals for a given market thesis.
 
-You receive:
-- Market thesis with regime, momentum, and observations
-- Pre-computed strategy proposals from deterministic analysis
-- Available contract details
-
 Your job is to:
 1. Evaluate each proposed strategy
 2. Select the best one with clear reasoning
 3. Note key risks and adjustments
 4. Provide confidence assessment
 
-Consider:
-- Regime alignment
-- Risk/reward profile
-- Liquidity
-- Time decay exposure
-- Greeks exposure
+Consider: regime alignment, risk/reward, liquidity, time decay, Greeks.
 
 Be specific. Reference the actual proposals and market conditions.
-Do NOT fabricate data. Only reason about what you receive.
 
-You must respond with valid JSON matching the schema provided."""
+You MUST respond with valid JSON matching this exact schema:
+{
+  "selected_strategy": "long_call",
+  "reasoning": "why this strategy was selected",
+  "confidence_adjustment": 0.05,
+  "risk_notes": "key risks",
+  "alternative_considered": "alternative strategy considered",
+  "adjustments": {}
+}"""
 
 # Map string names back to StrategyType for validation
 _STRATEGY_MAP = {s.value: s for s in StrategyType}

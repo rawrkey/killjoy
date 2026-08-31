@@ -163,10 +163,9 @@ class Executor:
     def _calculate_quantity(self, proposal: TradeProposal, buying_power: Decimal) -> int:
         """Calculate how many contracts to buy based on buying power and risk limits.
 
-        Uses the cheaper of:
-        - Max risk per trade ($500) / cost per contract
-        - 20% of buying power / cost per contract
-        Caps at 10 contracts max.
+        Uses:
+        - 5% of buying power per trade (capped at $2000 max risk per trade)
+        - Minimum 1 contract, max 10
         """
         if not proposal.legs:
             return 0
@@ -177,14 +176,15 @@ class Executor:
         if cost_per_contract <= 0:
             return 0
 
-        # Max from risk limit ($500 per trade)
-        max_from_risk = int(Decimal("500") / cost_per_contract)
+        # Max risk per trade: 5% of buying power, capped at $2000
+        max_risk = min(buying_power * Decimal("0.05"), Decimal("2000"))
 
-        # Max from buying power (use 20% per trade, leave buffer)
-        max_from_bp = int((buying_power * Decimal("0.20")) / cost_per_contract)
+        # Max from buying power (use 10% per trade)
+        max_from_bp = buying_power * Decimal("0.10")
 
-        # Take the lower of both, min 1, max 10
-        qty = min(max_from_risk, max_from_bp)
+        # Use the lower of both
+        available = min(max_risk, max_from_bp)
+        qty = int(available / cost_per_contract)
         return max(1, min(qty, 10))
 
     def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):

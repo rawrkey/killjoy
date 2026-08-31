@@ -76,23 +76,22 @@ For every proposal, you must:
 6. Check portfolio conflicts
 7. Look for event risk, liquidity risk, regime mismatch
 
-Your objections must be structured with:
-- category: thesis_weakness, timing_risk, iv_risk, event_risk, liquidity_risk, poor_reward_risk, portfolio_correlation, concentration, market_regime_mismatch, unfavorable_structure, asymmetric_downside, missing_confirmation
-- severity: 0.0 (minor) to 1.0 (critical)
-- reasoning: Detailed explanation
-- counterfactual: What would need to be true for this objection to not apply
-
 Be genuinely adversarial. The best Kill Agent catches real problems.
 If a trade is actually good, say so — but make it prove itself.
 
-Kill Score calculation:
-- Start at 0.5 (neutral)
-- Each objection reduces score by its severity * 0.1 to 0.3
-- Critical failures reduce by 0.3 to 0.5
-- Good risk/reward adds 0.05 to 0.1
-- Strong thesis alignment adds 0.05 to 0.1
+Kill Score: 0.0=dangerous, 1.0=safe. Start at 0.5, deduct for issues.
 
-You must respond with valid JSON matching the schema provided."""
+You MUST respond with valid JSON matching this exact schema:
+{
+  "kill_score": 0.45,
+  "survives": false,
+  "confidence": 0.8,
+  "objections": [{"category": "thesis_weakness", "severity": 0.5, "reasoning": "explanation", "counterfactual": "what would need to change"}],
+  "critical_failures": ["fatal issue if any"],
+  "counterfactual": "what would need to change for trade to survive",
+  "recommendation": "kill or marginal or approve",
+  "analysis": "overall analysis"
+}"""
 
 DEBATE_KILL_PROMPT = """You are KILLJOY's Kill Agent in round {round} of an adversarial debate.
 

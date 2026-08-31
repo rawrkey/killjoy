@@ -52,7 +52,17 @@ Be specific and quantitative. Reference the actual numbers provided.
 Do NOT make up data. Only reason about the features you receive.
 Keep your analysis focused and actionable for options trading.
 
-You must respond with valid JSON matching the schema provided."""
+You MUST respond with valid JSON matching this exact schema:
+{
+  "regime": "one of: strong_uptrend, uptrend, sideways, downtrend, strong_downtrend, high_volatility, low_volatility",
+  "confidence": 0.75,
+  "thesis": "brief market thesis",
+  "observations": ["observation 1", "observation 2"],
+  "risks": ["risk 1"],
+  "options_context": "options-specific context",
+  "sentiment_signal": "bullish or bearish or neutral",
+  "key_levels": "key support/resistance levels"
+}"""
 
 
 def analyze_market_llm(
