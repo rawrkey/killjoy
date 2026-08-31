@@ -72,6 +72,7 @@ class LLMProvider:
                 api_key=self._api_key,
                 base_url=self._base_url,
                 timeout=self._timeout,
+                max_retries=0,  # Don't retry on 429 — fall back to deterministic
             )
             return self._client
         except ImportError:
