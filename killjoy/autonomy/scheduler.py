@@ -281,8 +281,8 @@ class KilljoyScheduler:
         if spot <= 0:
             return
 
-        from killjoy.agent.strategy_agent import deterministic_proposals
-        proposals = deterministic_proposals(thesis, contracts, spot)
+        from killjoy.agent.strategy_agent import generate_proposals
+        proposals = generate_proposals(thesis, contracts, spot)
         results["proposals_generated"] += len(proposals)
 
         # 4. For each proposal, run kill test -> portfolio -> risk -> execute
