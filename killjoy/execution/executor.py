@@ -41,13 +41,14 @@ class Executor:
         self._recent_orders: dict[str, datetime] = {}  # client_order_id -> timestamp
         self._max_order_age_seconds = 300  # 5 minutes
 
-    def execute_proposal(self, proposal: TradeProposal) -> OrderResult:
+    def execute_proposal(self, proposal: TradeProposal, buying_power: Decimal = Decimal("10000")) -> OrderResult:
         """Execute an approved trade proposal via Alpaca paper trading.
 
         Safety checks before submission:
         1. Duplicate order protection
         2. Stale quote detection
         3. Contract availability
+        4. Position sizing based on buying power
         """
         if not proposal.legs:
             return OrderResult(error="No legs to execute")
@@ -98,8 +99,17 @@ class Executor:
                     status="stale_quote",
                 )
 
+        # 3. Calculate position size based on buying power
+        qty = self._calculate_quantity(proposal, buying_power)
+        if qty < 1:
+            return OrderResult(
+                symbol=proposal.underlying,
+                error=f"Insufficient buying power for {proposal.underlying} (need ${proposal.max_loss:.0f}, have ${buying_power:.0f})",
+                status="insufficient_buying_power",
+            )
+
         try:
-            order_request = self._build_order(proposal, client_order_id)
+            order_request = self._build_order(proposal, client_order_id, qty)
             logger.info(
                 "Submitting %s order: %s %s (%d legs) [id: %s]",
                 proposal.strategy.value,
@@ -150,7 +160,34 @@ class Executor:
             if ts > cutoff
         }
 
-    def _build_order(self, proposal: TradeProposal, client_order_id: str):
+    def _calculate_quantity(self, proposal: TradeProposal, buying_power: Decimal) -> int:
+        """Calculate how many contracts to buy based on buying power and risk limits.
+
+        Uses the cheaper of:
+        - Max risk per trade ($500) / cost per contract
+        - 20% of buying power / cost per contract
+        Caps at 10 contracts max.
+        """
+        if not proposal.legs:
+            return 0
+
+        cost_per_contract = proposal.legs[0].mid * 100
+        if cost_per_contract <= 0:
+            cost_per_contract = proposal.legs[0].ask * 100
+        if cost_per_contract <= 0:
+            return 0
+
+        # Max from risk limit ($500 per trade)
+        max_from_risk = int(Decimal("500") / cost_per_contract)
+
+        # Max from buying power (use 20% per trade, leave buffer)
+        max_from_bp = int((buying_power * Decimal("0.20")) / cost_per_contract)
+
+        # Take the lower of both, min 1, max 10
+        qty = min(max_from_risk, max_from_bp)
+        return max(1, min(qty, 10))
+
+    def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):
         """Build an Alpaca order request from a validated proposal."""
         legs = []
         for leg in proposal.legs:
@@ -169,7 +206,7 @@ class Executor:
         if len(legs) == 1:
             return MarketOrderRequest(
                 symbol=legs[0].symbol,
-                qty=1,
+                qty=qty,
                 side=legs[0].side,
                 type=OrderType.MARKET,
                 time_in_force=TimeInForce.DAY,
@@ -178,7 +215,7 @@ class Executor:
             )
         else:
             return MarketOrderRequest(
-                qty=1,
+                qty=qty,
                 side=OrderSide.BUY,
                 type=OrderType.MARKET,
                 time_in_force=TimeInForce.DAY,

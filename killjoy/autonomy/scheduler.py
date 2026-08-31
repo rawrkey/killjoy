@@ -387,7 +387,7 @@ class KilljoyScheduler:
             results["orders_submitted"] += 1
             submitted = True
         elif self._executor:
-            order_result = self._executor.execute_proposal(proposal)
+            order_result = self._executor.execute_proposal(proposal, self._portfolio.buying_power)
             entry.order_result = order_result
             self._journal.record_entry(entry)
             if order_result.status != "failed":
