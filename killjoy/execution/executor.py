@@ -86,7 +86,7 @@ class Executor:
 
         # 2. Stale quote detection
         for leg in proposal.legs:
-            if leg.mid <= 0 and leg.bid <= 0 and leg.ask <= 0:
+            if leg.mid <= 0 or leg.bid <= 0 or leg.ask <= 0:
                 logger.warning("Stale/missing quote for %s — skipping", leg.contract_symbol)
                 return OrderResult(
                     symbol=proposal.underlying,
@@ -177,11 +177,11 @@ class Executor:
 
         # Cap by MAX_RISK_PER_TRADE ($1000) / max_loss_per_contract
         max_risk = Decimal("1000")
-        if proposal.max_loss > 0:
+        if proposal.max_loss and proposal.max_loss > 0:
             max_risk_qty = int(max_risk / proposal.max_loss)
             qty = min(qty, max_risk_qty)
 
-        return min(qty, 10)
+        return min(qty, 5)
 
     def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):
         """Build an Alpaca order request from a validated proposal."""

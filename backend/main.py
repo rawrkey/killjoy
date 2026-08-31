@@ -730,7 +730,17 @@ def cron_run():
     try:
         from killjoy.database.repository import TradeJournal
         _tj = TradeJournal()
-        _today_trades = [e for e in _tj.get_all_entries() if e.timestamp and e.timestamp.date() == now.date()]
+        _today_trades = []
+        for e in _tj.get_all_entries():
+            try:
+                ts = e.timestamp
+                if isinstance(ts, str):
+                    from datetime import datetime as _dt
+                    ts = _dt.fromisoformat(ts.replace("Z", "+00:00"))
+                if ts.date() == now.date():
+                    _today_trades.append(e)
+            except Exception:
+                continue
         _daily_pnl = sum(float(getattr(e, "realized_pnl", 0) or 0) for e in _today_trades)
         if _daily_pnl < -800:
             logger.warning("CRON: Daily loss $%.2f exceeds circuit breaker — stopping", _daily_pnl)

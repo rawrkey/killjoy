@@ -41,11 +41,12 @@ def evaluate_position(
         if loss_pct >= max_loss_pct:
             reasons.append(f"Stop-loss hit: {loss_pct:.1%} >= {max_loss_pct:.0%}")
 
-    # Trailing stop: if position was up more and now dropped from peak
-    if high_water_mark is not None and high_water_mark > 0 and position.unrealized_plpc < high_water_mark:
-        drop_from_peak = high_water_mark - position.unrealized_plpc
-        if drop_from_peak >= trailing_stop_pct:
-            reasons.append(f"Trailing stop: dropped {drop_from_peak:.1%} from peak {high_water_mark:.1%}")
+    # Trailing stop: if position was up more and now dropped from peak (in $)
+    if high_water_mark is not None and high_water_mark > 0 and position.unrealized_pl < high_water_mark:
+        drop_from_peak = high_water_mark - position.unrealized_pl
+        drop_pct = drop_from_peak / high_water_mark if high_water_mark > 0 else 0
+        if drop_pct >= trailing_stop_pct:
+            reasons.append(f"Trailing stop: dropped ${drop_from_peak:.0f} ({drop_pct:.1%}) from peak ${high_water_mark:.0f}")
 
     # Time held
     if days_held > max_days_held:

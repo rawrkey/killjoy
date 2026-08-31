@@ -16,6 +16,7 @@ Pipeline:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -23,7 +24,7 @@ from typing import Any
 
 from killjoy.agent.llm_analyst import analyze_market_llm
 from killjoy.agent.llm_kill import kill_test_llm
-from killjoy.agent.llm_strategy import generate_proposals_llm
+
 from killjoy.agent.models import (
     AccountSnapshot,
     PositionSnapshot,
@@ -57,6 +58,7 @@ class KilljoyScheduler:
 
     Integrates LLM-backed agents with deterministic safety controls.
     """
+    _run_lock = threading.Lock()  # Prevent concurrent cron executions
 
     def __init__(
         self,
@@ -90,6 +92,16 @@ class KilljoyScheduler:
 
     def run_once(self) -> dict[str, Any]:
         """Execute one complete scan cycle. Returns summary."""
+        if not KilljoyScheduler._run_lock.acquire(blocking=False):
+            logger.warning("Another cycle already running — skipping")
+            return {"skipped": True, "reason": "concurrent_execution"}
+        try:
+            return self._run_once_inner()
+        finally:
+            KilljoyScheduler._run_lock.release()
+
+    def _run_once_inner(self) -> dict[str, Any]:
+        """Internal scan cycle execution."""
         self._run_counter += 1
         self._report = CycleReportBuilder()
         run_id = f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}-{self._run_counter:05d}"
@@ -118,7 +130,7 @@ class KilljoyScheduler:
 
         for trade in open_trades:
             try:
-                symbol = trade.get("underlying", "")
+                symbol = trade.underlying
                 if not symbol:
                     continue
 
@@ -134,25 +146,27 @@ class KilljoyScheduler:
 
                 from killjoy.monitoring.position_monitor import evaluate_position
                 # Pass high_water_mark and days_held from journal
-                hwm = Decimal(str(trade.get("high_water_mark", 0)))
-                days_held = trade.get("days_held", 0)
+                hwm = trade.high_water_mark
+                days_held = trade.days_held
                 action, reason = evaluate_position(pos_snap, high_water_mark=hwm, days_held=days_held)
 
                 # Update high water mark and days held in journal
                 current_pnl = Decimal(str(pos_snap.unrealized_pl))
                 if current_pnl > hwm:
                     hwm = current_pnl
-                trade_id = trade.get("trade_id", "")
+                trade_id = trade.trade_id
                 if trade_id:
                     from datetime import datetime as dt
-                    entry_time = trade.get("timestamp", "")
+                    entry_time = trade.timestamp
                     if entry_time:
-                        if isinstance(entry_time, str):
-                            try:
+                        try:
+                            if isinstance(entry_time, str):
                                 entry_dt = dt.fromisoformat(entry_time.replace("Z", "+00:00"))
-                                days_held = (dt.now(timezone.utc) - entry_dt).days
-                            except (ValueError, TypeError):
-                                days_held = 0
+                            else:
+                                entry_dt = entry_time
+                            days_held = (dt.now(timezone.utc) - entry_dt).days
+                        except (ValueError, TypeError):
+                            days_held = 0
                     self._journal.update_entry(trade_id, high_water_mark=hwm, days_held=days_held)
 
                 if action == "exit":
@@ -164,10 +178,10 @@ class KilljoyScheduler:
                         if order_result.status != "failed":
                             # Record exit in journal
                             realized_pnl = float(pos_snap.unrealized_pl)
-                            self._journal.record_exit(trade.get("id", ""), realized_pnl, "closed", order_result.order_id)
+                            self._journal.record_exit(trade.trade_id, realized_pnl, "closed", order_result.order_id)
                             results["positions_closed"] += 1
                             # Update graveyard with actual outcome
-                            strategy_type = trade.get("strategy", "unknown")
+                            strategy_type = trade.strategy or "unknown"
                             self._graveyard.record_trade(
                                 strategy_type,
                                 won=realized_pnl > 0,
@@ -181,23 +195,20 @@ class KilljoyScheduler:
                             logger.info("CLOSED %s: P&L $%.2f — %s", symbol, realized_pnl, reason)
                             self._report.add_position_close(
                                 symbol, reason, realized_pnl,
-                                strategy=trade.get("strategy", ""),
+                                strategy=trade.strategy,
                             )
                     else:
                         logger.info("DRY RUN: Would close %s — %s", symbol, reason)
                         results["positions_closed"] += 1
             except Exception as e:
-                logger.warning("Error evaluating position %s: %s", symbol, e)
+                logger.warning("Error evaluating position: %s", e)
 
-        # 2. Scan each underlying
-        for i, symbol in enumerate(self._universe):
+        # 2. Scan each underlying (3 symbols max for speed)
+        for i, symbol in enumerate(self._universe[:3]):
             try:
                 self._scan_symbol(symbol, results)
             except Exception as e:
                 logger.warning("Error scanning %s: %s", symbol, e)
-            # Rate limit protection: pause between LLM calls
-            if i < len(self._universe) - 1 and self._llm and self._llm.is_available:
-                time.sleep(1)
 
         logger.info(
             "RUN %s complete: %d proposals, %d killed, %d portfolio-rejected, %d risk-rejected, %d submitted, %d rejections recorded",
@@ -265,12 +276,13 @@ class KilljoyScheduler:
             logger.info("No contracts in DTE range for %s", symbol)
             return
 
-        # 3. LLM-enhanced proposal generation
+        # 3. Proposal generation (deterministic — fast, no LLM)
         spot = thesis.current_price
         if spot <= 0:
             return
 
-        proposals = generate_proposals_llm(thesis, contracts, spot, self._llm)
+        from killjoy.agent.strategy_agent import deterministic_proposals
+        proposals = deterministic_proposals(thesis, contracts, spot)
         results["proposals_generated"] += len(proposals)
 
         # 4. For each proposal, run kill test -> portfolio -> risk -> execute
@@ -348,9 +360,23 @@ class KilljoyScheduler:
             return
 
         # Risk engine (deterministic — final veto authority)
+        # Compute daily P&L from journal
+        daily_pnl = Decimal("0")
+        try:
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            for entry in self._journal.get_all_entries():
+                entry_ts = entry.timestamp
+                if isinstance(entry_ts, str):
+                    entry_ts = datetime.fromisoformat(entry_ts.replace("Z", "+00:00"))
+                if entry_ts.strftime("%Y-%m-%d") == today_str:
+                    daily_pnl += entry.realized_pnl
+        except Exception:
+            pass
+
         risk_decision = evaluate_risk(
             proposal,
             buying_power=self._portfolio.buying_power,
+            daily_pnl=daily_pnl,
             current_positions=self._portfolio.position_count,
         )
         self._event_log.log("risk_checked", run_id, symbol=proposal.underlying, data={
