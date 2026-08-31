@@ -133,7 +133,27 @@ class KilljoyScheduler:
                     continue
 
                 from killjoy.monitoring.position_monitor import evaluate_position
-                action, reason = evaluate_position(pos_snap)
+                # Pass high_water_mark and days_held from journal
+                hwm = Decimal(str(trade.get("high_water_mark", 0)))
+                days_held = trade.get("days_held", 0)
+                action, reason = evaluate_position(pos_snap, high_water_mark=hwm, days_held=days_held)
+
+                # Update high water mark and days held in journal
+                current_pnl = Decimal(str(pos_snap.unrealized_pl))
+                if current_pnl > hwm:
+                    hwm = current_pnl
+                trade_id = trade.get("trade_id", "")
+                if trade_id:
+                    from datetime import datetime as dt
+                    entry_time = trade.get("timestamp", "")
+                    if entry_time:
+                        if isinstance(entry_time, str):
+                            try:
+                                entry_dt = dt.fromisoformat(entry_time.replace("Z", "+00:00"))
+                                days_held = (dt.now(timezone.utc) - entry_dt).days
+                            except (ValueError, TypeError):
+                                days_held = 0
+                    self._journal.update_entry(trade_id, high_water_mark=hwm, days_held=days_held)
 
                 if action == "exit":
                     logger.info("AUTO-SELL %s: %s", symbol, reason)

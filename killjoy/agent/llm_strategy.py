@@ -79,7 +79,7 @@ def generate_proposals_llm(
         return []
 
     # Step 2: LLM reasoning (if available)
-    if not llm.is_available:
+    if llm is None or not llm.is_available:
         logger.debug("LLM unavailable, using deterministic proposals")
         return candidates
 

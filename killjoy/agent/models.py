@@ -279,6 +279,8 @@ class TradeJournalEntry(BaseModel):
     exit_order: OrderResult | None = None
     realized_pnl: Decimal = Decimal("0")
     result: str = ""  # "open", "win", "loss", "breakeven", "closed"
+    high_water_mark: Decimal = Decimal("0")  # Highest unrealized P&L for trailing stop
+    days_held: int = 0  # Days since trade entry
     postmortem: Postmortem | None = None
 
 

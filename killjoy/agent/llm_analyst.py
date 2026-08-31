@@ -80,7 +80,7 @@ def analyze_market_llm(
     features = deterministic_analyze(market_data, underlying)
 
     # Step 2: LLM reasoning (if available)
-    if not llm.is_available:
+    if llm is None or not llm.is_available:
         logger.debug("LLM unavailable for %s, using deterministic analysis", underlying)
         return features
 

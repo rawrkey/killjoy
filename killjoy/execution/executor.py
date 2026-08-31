@@ -176,8 +176,10 @@ class Executor:
 
         # 5% of buying power per trade
         budget = buying_power * Decimal("0.05")
+        if budget <= 0:
+            return 0
         qty = int(budget / cost_per_contract)
-        return max(1, min(qty, 20))
+        return min(qty, 20)
 
     def _build_order(self, proposal: TradeProposal, client_order_id: str, qty: int = 1):
         """Build an Alpaca order request from a validated proposal."""

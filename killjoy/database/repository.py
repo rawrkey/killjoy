@@ -53,6 +53,15 @@ class TradeJournal:
     def get_entry(self, trade_id: str) -> TradeJournalEntry | None:
         return self._entries.get(trade_id)
 
+    def update_entry(self, trade_id: str, **kwargs) -> None:
+        """Update specific fields of a journal entry."""
+        if trade_id in self._entries:
+            entry = self._entries[trade_id]
+            for key, value in kwargs.items():
+                if hasattr(entry, key):
+                    setattr(entry, key, value)
+            self._persist(entry)
+
     def get_all_entries(self) -> list[TradeJournalEntry]:
         """Load all entries from disk."""
         entries = []
