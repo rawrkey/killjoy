@@ -699,73 +699,63 @@ def cron_run():
     global _autonomous_enabled
 
     if not _autonomous_enabled:
-        return {"skipped": True, "reason": "autonomous_disabled"}
+        return {"ok": True, "s": "off"}
 
     # Check market hours (9:30 AM – 4:00 PM ET, Mon–Fri)
-    from datetime import datetime
-    import zoneinfo
+    from datetime import datetime, timezone, timedelta
     try:
-        et = zoneinfo.ZoneInfo("America/New_York")
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
     except Exception:
-        et = zoneinfo.ZoneInfo("US/Eastern")
+        et = timezone(timedelta(hours=-4))  # EDT fallback
     now = datetime.now(et)
 
-    if now.weekday() >= 5:  # Saturday=5, Sunday=6
-        return {"skipped": True, "reason": "weekend", "day": now.strftime("%A")}
+    if now.weekday() >= 5:
+        return {"ok": True, "s": "wknd"}
 
     market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
     market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
 
     if now < market_open:
-        return {"skipped": True, "reason": "before_market_open", "time": now.strftime("%H:%M ET")}
+        return {"ok": True, "s": "pre"}
     if now > market_close:
-        return {"skipped": True, "reason": "after_market_close", "time": now.strftime("%H:%M ET")}
+        return {"ok": True, "s": "post"}
 
-    # Entry timing: skip first 15 min after open (wide spreads, high volatility)
-    market_open_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
-    if (now - market_open_time).total_seconds() < 900:
-        return {"skipped": True, "reason": "waiting_for_settle", "time": now.strftime("%H:%M ET")}
+    # Skip first 15 min after open
+    if (now - market_open).total_seconds() < 900:
+        return {"ok": True, "s": "settle"}
 
-    # Daily loss circuit breaker: check if today's losses exceed limit
+    # Daily loss circuit breaker
     try:
         from killjoy.database.repository import TradeJournal
         _tj = TradeJournal()
-        _today_trades = []
+        _daily_pnl = Decimal("0")
+        today_str = now.strftime("%Y-%m-%d")
         for e in _tj.get_all_entries():
             try:
                 ts = e.timestamp
                 if isinstance(ts, str):
-                    from datetime import datetime as _dt
-                    ts = _dt.fromisoformat(ts.replace("Z", "+00:00"))
-                if ts.date() == now.date():
-                    _today_trades.append(e)
+                    ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if hasattr(ts, "date") and ts.date() == now.date():
+                    _daily_pnl += Decimal(str(getattr(e, "realized_pnl", 0) or 0))
             except Exception:
                 continue
-        _daily_pnl = sum(float(getattr(e, "realized_pnl", 0) or 0) for e in _today_trades)
-        if _daily_pnl < -800:
-            logger.warning("CRON: Daily loss $%.2f exceeds circuit breaker — stopping", _daily_pnl)
-            return {"skipped": True, "reason": "daily_loss_circuit_breaker", "daily_pnl": round(_daily_pnl, 2)}
+        if float(_daily_pnl) < -800:
+            return {"ok": True, "s": "loss_limit"}
     except Exception:
-        pass  # If journal check fails, continue anyway
+        pass
 
     # Market is open — run live cycle
-    logger.info("CRON: Running live cycle at %s ET", now.strftime("%H:%M"))
     try:
         result = live_cycle()
-        r = result.get("results", {})
-        # Return lightweight summary only — full results stored in reports
+        r = result.get("results", {}) if isinstance(result, dict) else {}
         return {
-            "skipped": False,
-            "run_id": r.get("run_id", ""),
-            "proposals": r.get("proposals_generated", 0),
-            "killed": r.get("proposals_killed", 0),
-            "risk_rejected": r.get("proposals_risk_rejected", 0),
-            "orders": r.get("orders_submitted", 0),
-            "positions_monitored": r.get("positions_monitored", 0),
-            "positions_closed": r.get("positions_closed", 0),
-            "llm": r.get("llm", "unknown"),
-            "mode": r.get("mode", "LIVE"),
+            "ok": True,
+            "s": "ran",
+            "r": r.get("orders_submitted", 0),
+            "k": r.get("proposals_killed", 0),
+            "m": r.get("positions_monitored", 0),
         }
     except Exception as e:
         logger.error("CRON cycle failed: %s", e)
-        return {"skipped": False, "error": str(e)[:200]}
+        return {"ok": False, "err": str(e)[:100]}

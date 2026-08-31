@@ -130,8 +130,12 @@ class KilljoyScheduler:
 
         # 1a. EOD strategy: sell profitable positions before close
         try:
-            from zoneinfo import ZoneInfo
-            et = datetime.now(ZoneInfo("America/New_York"))
+            from datetime import timedelta as _td
+            try:
+                from zoneinfo import ZoneInfo
+                et = datetime.now(ZoneInfo("America/New_York"))
+            except Exception:
+                et = datetime.now(timezone.utc) + _td(hours=-4)  # EDT fallback
             market_close = et.replace(hour=16, minute=0, second=0, microsecond=0)
             minutes_to_close = (market_close - et).total_seconds() / 60
 
