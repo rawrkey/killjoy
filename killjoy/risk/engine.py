@@ -17,10 +17,11 @@ MAX_RISK_PER_TRADE = Decimal("500")         # max dollars at risk per trade
 MAX_DAILY_LOSS = Decimal("1000")            # max daily portfolio loss
 MAX_OPTIONS_EXPOSURE = Decimal("10000")     # max total options exposure
 MAX_SINGLE_UNDERLYING_EXPOSURE = Decimal("3000")
-MIN_REWARD_RISK = Decimal("1.0")            # minimum reward/risk ratio
+MIN_REWARD_RISK = Decimal("1.5")            # minimum reward/risk ratio (was 1.0)
 MIN_BUYING_POWER = Decimal("500")           # minimum buying power required
 MAX_POSITIONS = 10                          # max concurrent positions
-MIN_CONFIDENCE = Decimal("0.3")             # minimum proposal confidence
+MIN_CONFIDENCE = Decimal("0.4")             # minimum proposal confidence (was 0.3)
+MAX_IV_RANK = Decimal("70")                 # don't buy options when IV rank > 70%
 
 
 def evaluate_risk(
@@ -117,8 +118,19 @@ def evaluate_risk(
         passed=proposal.confidence >= MIN_CONFIDENCE,
         value=float(proposal.confidence),
         limit=float(MIN_CONFIDENCE),
-        reason=f"Confidence {proposal.confidence:.2f} {'OK' if proposal.confidence >= MIN_CONFIDENCE else '< minimum'}",
+        reason=f"Confidence {proposal.confidence:.2f} {'OK' if proposal.confidence >= MIN_CONFIDENCE else '< minimum ' + str(MIN_CONFIDENCE)}",
     ))
+
+    # 9. IV Rank check — don't buy options when IV is high (overpaying for premium)
+    iv_rank = Decimal(str(proposal.metadata.get("iv_rank", 50)) if proposal.metadata else 50)
+    if proposal.legs and proposal.legs[0].side == "buy":
+        checks.append(RiskCheck(
+            name="iv_rank_check",
+            passed=iv_rank <= MAX_IV_RANK,
+            value=float(iv_rank),
+            limit=float(MAX_IV_RANK),
+            reason=f"IV rank {iv_rank:.0f}% {'OK' if iv_rank <= MAX_IV_RANK else '> ' + str(MAX_IV_RANK) + '% — overpaying for premium'}",
+        ))
 
     failed = [c for c in checks if not c.passed]
     approved = len(failed) == 0

@@ -327,7 +327,7 @@ def live_cycle():
     portfolio.update(acc_snap, pos_snaps)
 
     journal = TradeJournal()
-    executor = Executor(trading_client._client)
+    executor = Executor(trading_client._client, journal=journal)
     scheduler = KilljoyScheduler(
         market_data=market_data,
         options_data=options_data,
@@ -728,11 +728,41 @@ def cron_run():
     if now > market_close:
         return {"skipped": True, "reason": "after_market_close", "time": now.strftime("%H:%M ET")}
 
+    # Entry timing: skip first 15 min after open (wide spreads, high volatility)
+    market_open_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    if (now - market_open_time).total_seconds() < 900:
+        return {"skipped": True, "reason": "waiting_for_settle", "time": now.strftime("%H:%M ET")}
+
+    # Daily loss circuit breaker: check if today's losses exceed limit
+    try:
+        from killjoy.database.repository import TradeJournal
+        _tj = TradeJournal()
+        _today_trades = [e for e in _tj.get_all_entries() if e.timestamp and e.timestamp.date() == now.date()]
+        _daily_pnl = sum(float(getattr(e, "realized_pnl", 0) or 0) for e in _today_trades)
+        if _daily_pnl < -800:
+            logger.warning("CRON: Daily loss $%.2f exceeds circuit breaker — stopping", _daily_pnl)
+            return {"skipped": True, "reason": "daily_loss_circuit_breaker", "daily_pnl": round(_daily_pnl, 2)}
+    except Exception:
+        pass  # If journal check fails, continue anyway
+
     # Market is open — run live cycle
     logger.info("CRON: Running live cycle at %s ET", now.strftime("%H:%M"))
     try:
         result = live_cycle()
-        return {"skipped": False, "results": result.get("results", {})}
+        r = result.get("results", {})
+        # Return lightweight summary only — full results stored in reports
+        return {
+            "skipped": False,
+            "run_id": r.get("run_id", ""),
+            "proposals": r.get("proposals_generated", 0),
+            "killed": r.get("proposals_killed", 0),
+            "risk_rejected": r.get("proposals_risk_rejected", 0),
+            "orders": r.get("orders_submitted", 0),
+            "positions_monitored": r.get("positions_monitored", 0),
+            "positions_closed": r.get("positions_closed", 0),
+            "llm": r.get("llm", "unknown"),
+            "mode": r.get("mode", "LIVE"),
+        }
     except Exception as e:
         logger.error("CRON cycle failed: %s", e)
-        return {"skipped": False, "error": str(e)}
+        return {"skipped": False, "error": str(e)[:200]}

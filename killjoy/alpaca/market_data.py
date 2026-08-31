@@ -19,10 +19,9 @@ from killjoy.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-# Default universe
+# Default universe — top 5 most liquid for fast cycle times
 DEFAULT_UNIVERSE = [
-    "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA",
-    "AMZN", "META", "GOOGL", "TSLA",
+    "SPY", "QQQ", "AAPL", "NVDA", "TSLA",
 ]
 
 

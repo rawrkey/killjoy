@@ -48,5 +48,5 @@ class LongCallStrategy(StrategyBase):
             reward_risk=reward_risk,
             confidence=thesis.confidence * Decimal("0.8"),
             thesis=f"Bullish: {thesis.thesis}",
-            metadata={"spot": float(spot), "iv": float(call.implied_volatility)},
+            metadata={"spot": float(spot), "iv": float(call.implied_volatility), "iv_rank": float(thesis.iv_rank)},
         )

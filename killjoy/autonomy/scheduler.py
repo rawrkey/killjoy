@@ -251,7 +251,7 @@ class KilljoyScheduler:
         results["proposals_generated"] += len(proposals)
 
         # 4. For each proposal, run kill test -> portfolio -> risk -> execute
-        for proposal in proposals[:2]:  # Limit to top 2 per symbol
+        for proposal in proposals[:1]:  # Limit to top 1 per symbol for speed
             self._process_proposal(proposal, thesis, results)
 
     def _process_proposal(self, proposal: TradeProposal, thesis, results: dict) -> None:

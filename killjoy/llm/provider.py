@@ -46,8 +46,8 @@ class LLMProvider:
         base_url: str = "https://api.openai.com/v1",
         model: str = "gpt-4o-mini",
         temperature: float = 0.3,
-        max_tokens: int = 2048,
-        timeout: int = 30,
+        max_tokens: int = 1024,
+        timeout: int = 15,
     ) -> None:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")

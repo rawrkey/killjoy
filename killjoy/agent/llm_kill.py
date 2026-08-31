@@ -22,7 +22,7 @@ Kill Score Semantics (consistent everywhere):
   0.60 - 0.80: DECENT — Minor concerns, acceptable
   0.80 - 1.00: STRONG — Few or no concerns, should proceed
 
-Threshold: 0.40 — trades below this score are killed.
+Threshold: 0.55 — trades below this score are killed.
 
 The final execution decision remains deterministic.
 """
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-KILL_THRESHOLD = Decimal("0.4")
+KILL_THRESHOLD = Decimal("0.55")
 
 
 class LLMKillOutput(BaseModel):
@@ -177,15 +177,15 @@ def kill_test_llm(
         messages,
         schema=LLMKillOutput,
         temperature=0.4,
-        max_tokens=2048,
+        max_tokens=1024,
     )
 
     if output is None:
         logger.warning("LLM kill failed, using deterministic: %s", response.error)
         return _enrich_with_model_fields(deterministic_result)
 
-    # Step 3: Adversarial debate (1-2 rounds)
-    debate_transcript = _run_debate(proposal, thesis, output, llm)
+    # Step 3: Skip debate for speed (cron timeout = 30s)
+    debate_transcript = []
 
     # Step 4: Compute final kill score
     final_kill_score = _compute_kill_score(output, debate_transcript)
@@ -316,7 +316,7 @@ def _run_debate(
         trader_messages,
         schema=TraderDefense,
         temperature=0.3,
-        max_tokens=1024,
+        max_tokens=512,
     )
 
     if trader_output:
@@ -336,7 +336,7 @@ def _run_debate(
                 kill_messages,
                 schema=LLMKillOutput,
                 temperature=0.4,
-                max_tokens=1024,
+                max_tokens=512,
             )
 
             if kill_response:

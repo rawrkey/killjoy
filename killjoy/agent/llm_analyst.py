@@ -84,7 +84,7 @@ def analyze_market_llm(
         messages,
         schema=LLMAnalystOutput,
         temperature=0.3,
-        max_tokens=1024,
+        max_tokens=512,
     )
 
     if output is None:

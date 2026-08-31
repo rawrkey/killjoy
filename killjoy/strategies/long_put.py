@@ -47,5 +47,5 @@ class LongPutStrategy(StrategyBase):
             reward_risk=reward_risk,
             confidence=thesis.confidence * Decimal("0.8"),
             thesis=f"Bearish: {thesis.thesis}",
-            metadata={"spot": float(spot), "iv": float(put.implied_volatility)},
+            metadata={"spot": float(spot), "iv": float(put.implied_volatility), "iv_rank": float(thesis.iv_rank)},
         )

@@ -70,5 +70,6 @@ class BullCallSpreadStrategy(StrategyBase):
                 "spot": float(spot),
                 "width": float(width),
                 "net_debit": float(net_debit),
+                "iv_rank": float(thesis.iv_rank),
             },
         )

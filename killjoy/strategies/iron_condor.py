@@ -80,5 +80,6 @@ class IronCondorStrategy(StrategyBase):
                 "net_credit": float(net_credit),
                 "call_width": float(call_width),
                 "put_width": float(put_width),
+                "iv_rank": float(thesis.iv_rank),
             },
         )

@@ -244,8 +244,8 @@ def cmd_autonomous(scan_interval: int = 30) -> int:
         market_data = MarketDataClient(settings)
         options_data = OptionsDataClient(settings)
         portfolio = PortfolioManager()
-        executor = Executor(trading_client._trading_client)
         journal = TradeJournal()
+        executor = Executor(trading_client._trading_client, journal=journal)
         llm = _init_llm(settings)
 
         from killjoy.agent.models import AccountSnapshot, PositionSnapshot

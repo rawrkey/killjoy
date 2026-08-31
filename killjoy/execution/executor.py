@@ -29,14 +29,15 @@ class Executor:
     """Constructs and submits validated options orders through Alpaca.
 
     Safety features:
-    - Duplicate order protection (idempotent client order IDs)
+    - Duplicate order protection (idempotent client order IDs + journal check)
     - Stale quote detection
     - Order rejection handling
     - No blind retries (prevents duplicate positions)
     """
 
-    def __init__(self, client: TradingClient) -> None:
+    def __init__(self, client: TradingClient, journal=None) -> None:
         self._client = client
+        self._journal = journal
         self._recent_orders: dict[str, datetime] = {}  # client_order_id -> timestamp
         self._max_order_age_seconds = 300  # 5 minutes
 
@@ -51,7 +52,7 @@ class Executor:
         if not proposal.legs:
             return OrderResult(error="No legs to execute")
 
-        # 1. Duplicate order protection
+        # 1. Duplicate order protection — in-memory check
         client_order_id = self._generate_client_order_id(proposal)
         if client_order_id in self._recent_orders:
             age = (datetime.now(timezone.utc) - self._recent_orders[client_order_id]).seconds
@@ -65,6 +66,27 @@ class Executor:
                     error=f"Duplicate order blocked (submitted {age}s ago)",
                     status="duplicate_blocked",
                 )
+
+        # 1b. Duplicate order protection — journal check (persists across restarts)
+        if self._journal:
+            open_trades = self._journal.get_open_trades()
+            for trade in open_trades:
+                if (
+                    trade.underlying == proposal.underlying
+                    and trade.strategy == proposal.strategy.value
+                    and trade.order_result is not None
+                ):
+                    logger.warning(
+                        "Duplicate order blocked via journal: %s %s (trade %s already has order %s)",
+                        proposal.underlying, proposal.strategy.value,
+                        trade.trade_id,
+                        trade.order_result.order_id if trade.order_result else "unknown",
+                    )
+                    return OrderResult(
+                        symbol=proposal.underlying,
+                        error=f"Duplicate: {trade.strategy} already open (trade {trade.trade_id})",
+                        status="duplicate_blocked",
+                    )
 
         # 2. Stale quote detection
         for leg in proposal.legs:
