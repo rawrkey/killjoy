@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     killjoy_llm_base_url: str = "https://api.openai.com/v1"
     killjoy_llm_model: str = "gpt-4o-mini"
     killjoy_llm_temperature: float = 0.3
-    killjoy_llm_max_tokens: int = 2048
+    killjoy_llm_max_tokens: int = 512
 
     @field_validator("alpaca_paper")
     @classmethod
