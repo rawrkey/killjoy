@@ -16,6 +16,7 @@ Pipeline:
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -51,6 +52,15 @@ from killjoy.portfolio.manager import PortfolioManager
 from killjoy.risk.engine import evaluate_risk
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_underlying(option_symbol: str) -> str:
+    """Extract root underlying from an OCC option symbol.
+
+    Example: AAPL261002P00305000 -> AAPL, NVDA261002C00230000 -> NVDA
+    """
+    m = re.match(r"^([A-Z]+)\d{6}[CP]\d+", option_symbol)
+    return m.group(1) if m else option_symbol
 
 
 class KilljoyScheduler:
@@ -157,7 +167,7 @@ class KilljoyScheduler:
                             if order_result.status != "failed":
                                 # Find matching journal entry and record exit
                                 for trade in open_trades:
-                                    if trade.underlying == pos_snap.symbol:
+                                    if trade.underlying == _extract_underlying(pos_snap.symbol):
                                         self._journal.record_exit(trade.trade_id, sym_pnl, "closed_eod", order_result.order_id)
                                         break
                                 results["positions_closed"] += 1
@@ -181,7 +191,7 @@ class KilljoyScheduler:
                 # Find matching position from portfolio
                 pos_snap = None
                 for p in self._portfolio._positions:
-                    if p.symbol == symbol:
+                    if _extract_underlying(p.symbol) == symbol:
                         pos_snap = p
                         break
 
@@ -218,7 +228,7 @@ class KilljoyScheduler:
                     self._event_log.log("exit_signal", run_id, symbol=symbol, data={"reason": reason})
 
                     if not self._dry_run and self._executor:
-                        order_result = self._executor.close_position(symbol)
+                        order_result = self._executor.close_position(pos_snap.symbol)
                         if order_result.status != "failed":
                             # Record exit in journal
                             realized_pnl = float(pos_snap.unrealized_pl)
