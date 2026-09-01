@@ -695,116 +695,68 @@ def cron_run():
     """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
 
     External cron services (cron-job.org, GitHub Actions) ping this every 30 min.
-    Returns a tiny JSON dict in all paths to stay within cron-job.org output limits.
+    Returns a tiny JSON dict in all paths.
     """
     global _autonomous_enabled
 
-    import io
-    import logging as _logging
-    import sys as _sys
+    if not _autonomous_enabled:
+        return {"ok": True, "s": "off"}
 
-    # ── Silence ALL server output for the duration of this request ──────────
-    # cron-job.org captures stderr as "output".  We must suppress:
-    #   • uvicorn access/error logs  (StreamHandler → stderr)
-    #   • killjoy / httpx / etc.      (propagate to root StreamHandler)
-    #   • any stray print() calls     (write to sys.stdout/stderr)
-
-    # 1) Raise every logger to WARNING so INFO messages are never emitted.
-    _suppress_loggers = [
-        None, "killjoy", "httpx", "httpcore", "urllib3",
-        "uvicorn", "uvicorn.access", "uvicorn.error",
-        "fastapi", "starlette",
-    ]
-    _prev_levels: dict = {}
-    for name in _suppress_loggers:
-        lgr = _logging.getLogger(name)
-        _prev_levels[name] = lgr.getEffectiveLevel()
-        lgr.setLevel(_logging.WARNING)
-
-    # 2) Replace the stream on every root StreamHandler so even ERROR/CRITICAL
-    #    messages go to /dev/null.  This catches handlers that captured a
-    #    reference to the original sys.stderr at startup.
-    _devnull = io.StringIO()
-    _patched_handlers: list = []
-    for h in _logging.root.handlers:
-        if hasattr(h, "stream") and h.stream is not None:
-            _patched_handlers.append((h, h.stream))
-            h.stream = _devnull
-
-    # 3) Redirect sys.stdout / sys.stderr so print() output is swallowed too.
-    _old_stdout, _old_stderr = _sys.stdout, _sys.stderr
-    _sys.stdout = _devnull
-    _sys.stderr = _devnull
-
+    # Check market hours (9:30 AM – 4:00 PM ET, Mon–Fri)
+    from datetime import datetime, timezone, timedelta
     try:
-        if not _autonomous_enabled:
-            return {"ok": True, "s": "off"}
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
+    except Exception:
+        et = timezone(timedelta(hours=-4))  # EDT fallback
+    now = datetime.now(et)
 
-        # Check market hours (9:30 AM – 4:00 PM ET, Mon–Fri)
-        from datetime import datetime, timezone, timedelta
-        try:
-            from zoneinfo import ZoneInfo
-            et = ZoneInfo("America/New_York")
-        except Exception:
-            et = timezone(timedelta(hours=-4))  # EDT fallback
-        now = datetime.now(et)
+    if now.weekday() >= 5:
+        return {"ok": True, "s": "wknd"}
 
-        if now.weekday() >= 5:
-            return {"ok": True, "s": "wknd"}
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
 
-        market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
-        market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if now < market_open:
+        return {"ok": True, "s": "pre"}
+    if now > market_close:
+        return {"ok": True, "s": "post"}
 
-        if now < market_open:
-            return {"ok": True, "s": "pre"}
-        if now > market_close:
-            return {"ok": True, "s": "post"}
+    # Skip first 15 min after open
+    if (now - market_open).total_seconds() < 900:
+        return {"ok": True, "s": "settle"}
 
-        # Skip first 15 min after open
-        if (now - market_open).total_seconds() < 900:
-            return {"ok": True, "s": "settle"}
+    # Daily loss circuit breaker
+    try:
+        from killjoy.database.repository import TradeJournal
+        _tj = TradeJournal()
+        _daily_pnl = Decimal("0")
+        today_str = now.strftime("%Y-%m-%d")
+        for e in _tj.get_all_entries():
+            try:
+                ts = e.timestamp
+                if isinstance(ts, str):
+                    ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if hasattr(ts, "date") and ts.date() == now.date():
+                    _daily_pnl += Decimal(str(getattr(e, "realized_pnl", 0) or 0))
+            except Exception:
+                continue
+        if float(_daily_pnl) < -800:
+            return {"ok": True, "s": "loss_limit"}
+    except Exception:
+        pass
 
-        # Daily loss circuit breaker
-        try:
-            from killjoy.database.repository import TradeJournal
-            _tj = TradeJournal()
-            _daily_pnl = Decimal("0")
-            today_str = now.strftime("%Y-%m-%d")
-            for e in _tj.get_all_entries():
-                try:
-                    ts = e.timestamp
-                    if isinstance(ts, str):
-                        ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    if hasattr(ts, "date") and ts.date() == now.date():
-                        _daily_pnl += Decimal(str(getattr(e, "realized_pnl", 0) or 0))
-                except Exception:
-                    continue
-            if float(_daily_pnl) < -800:
-                return {"ok": True, "s": "loss_limit"}
-        except Exception:
-            pass
-
-        # Market is open — run live cycle
-        try:
-            result = live_cycle()
-            r = result.get("results", {}) if isinstance(result, dict) else {}
-            return {
-                "ok": True,
-                "s": "ran",
-                "r": r.get("orders_submitted", 0),
-                "k": r.get("proposals_killed", 0),
-                "m": r.get("positions_monitored", 0),
-            }
-        except Exception as e:
-            return {"ok": False, "err": str(e)[:100]}
-
+    # Market is open — run live cycle
+    try:
+        result = live_cycle()
+        r = result.get("results", {}) if isinstance(result, dict) else {}
+        return {
+            "ok": True,
+            "s": "ran",
+            "r": r.get("orders_submitted", 0),
+            "k": r.get("proposals_killed", 0),
+            "m": r.get("positions_monitored", 0),
+        }
     except Exception as e:
+        logger.error("CRON cycle failed: %s", e)
         return {"ok": False, "err": str(e)[:100]}
-
-    finally:
-        # ── Restore everything ──────────────────────────────────────────────
-        _sys.stdout, _sys.stderr = _old_stdout, _old_stderr
-        for h, original_stream in _patched_handlers:
-            h.stream = original_stream
-        for name in _suppress_loggers:
-            _logging.getLogger(name).setLevel(_prev_levels[name])
