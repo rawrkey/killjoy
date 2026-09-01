@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import sys
@@ -747,7 +748,16 @@ def cron_run():
         pass
 
     # Market is open — run live cycle
+    # Suppress verbose logging during cron to avoid "output too large" on cron-job.org
+    _prev_handlers = logging.root.handlers[:]
+    _prev_level = logging.root.level
+    _devnull = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
     try:
+        logging.root.handlers = [logging.StreamHandler(_devnull)]
+        logging.root.setLevel(logging.WARNING)
+        for name in list(logging.Logger.manager.loggerDict):
+            logging.getLogger(name).setLevel(logging.WARNING)
+
         result = live_cycle()
         r = result.get("results", {}) if isinstance(result, dict) else {}
         return {
@@ -758,5 +768,9 @@ def cron_run():
             "m": r.get("positions_monitored", 0),
         }
     except Exception as e:
-        logger.error("CRON cycle failed: %s", e)
         return {"ok": False, "err": str(e)[:100]}
+    finally:
+        logging.root.handlers = _prev_handlers
+        logging.root.setLevel(_prev_level)
+        for name in list(logging.Logger.manager.loggerDict):
+            logging.getLogger(name).setLevel(logging.NOTSET)
