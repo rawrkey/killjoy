@@ -748,11 +748,16 @@ def cron_run():
         pass
 
     # Market is open — run live cycle
-    # Suppress verbose logging during cron to avoid "output too large" on cron-job.org
+    # Redirect ALL stdout/stderr to /dev/null during cron to avoid "output too large" on cron-job.org
+    import sys
+    _prev_stdout = sys.stdout
+    _prev_stderr = sys.stderr
     _prev_handlers = logging.root.handlers[:]
     _prev_level = logging.root.level
-    _devnull = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+    _devnull = open(os.devnull, "w", encoding="utf-8")
     try:
+        sys.stdout = _devnull
+        sys.stderr = _devnull
         logging.root.handlers = [logging.StreamHandler(_devnull)]
         logging.root.setLevel(logging.WARNING)
         for name in list(logging.Logger.manager.loggerDict):
@@ -760,6 +765,9 @@ def cron_run():
 
         result = live_cycle()
         r = result.get("results", {}) if isinstance(result, dict) else {}
+        # Restore stdout before writing response
+        sys.stdout = _prev_stdout
+        sys.stderr = _prev_stderr
         return {
             "ok": True,
             "s": "ran",
@@ -768,8 +776,13 @@ def cron_run():
             "m": r.get("positions_monitored", 0),
         }
     except Exception as e:
+        sys.stdout = _prev_stdout
+        sys.stderr = _prev_stderr
         return {"ok": False, "err": str(e)[:100]}
     finally:
+        sys.stdout = _prev_stdout
+        sys.stderr = _prev_stderr
+        _devnull.close()
         logging.root.handlers = _prev_handlers
         logging.root.setLevel(_prev_level)
         for name in list(logging.Logger.manager.loggerDict):
