@@ -699,6 +699,43 @@ def cron_run():
     """
     global _autonomous_enabled
 
+    import io
+    import logging as _logging
+    import sys as _sys
+
+    # ── Silence ALL server output for the duration of this request ──────────
+    # cron-job.org captures stderr as "output".  We must suppress:
+    #   • uvicorn access/error logs  (StreamHandler → stderr)
+    #   • killjoy / httpx / etc.      (propagate to root StreamHandler)
+    #   • any stray print() calls     (write to sys.stdout/stderr)
+
+    # 1) Raise every logger to WARNING so INFO messages are never emitted.
+    _suppress_loggers = [
+        None, "killjoy", "httpx", "httpcore", "urllib3",
+        "uvicorn", "uvicorn.access", "uvicorn.error",
+        "fastapi", "starlette",
+    ]
+    _prev_levels: dict = {}
+    for name in _suppress_loggers:
+        lgr = _logging.getLogger(name)
+        _prev_levels[name] = lgr.getEffectiveLevel()
+        lgr.setLevel(_logging.WARNING)
+
+    # 2) Replace the stream on every root StreamHandler so even ERROR/CRITICAL
+    #    messages go to /dev/null.  This catches handlers that captured a
+    #    reference to the original sys.stderr at startup.
+    _devnull = io.StringIO()
+    _patched_handlers: list = []
+    for h in _logging.root.handlers:
+        if hasattr(h, "stream") and h.stream is not None:
+            _patched_handlers.append((h, h.stream))
+            h.stream = _devnull
+
+    # 3) Redirect sys.stdout / sys.stderr so print() output is swallowed too.
+    _old_stdout, _old_stderr = _sys.stdout, _sys.stderr
+    _sys.stdout = _devnull
+    _sys.stderr = _devnull
+
     try:
         if not _autonomous_enabled:
             return {"ok": True, "s": "off"}
@@ -748,26 +785,6 @@ def cron_run():
             pass
 
         # Market is open — run live cycle
-        # Suppress ALL stdout/stderr and log output so cron-job.org stays within its
-        # output-size limit (~8 KB for the free tier).
-        import io
-        import logging as _logging
-        import sys as _sys
-
-        _prev_level = logger.getEffectiveLevel()
-        _suppress_loggers = [
-            None, "killjoy", "httpx", "httpcore", "urllib3",
-            "uvicorn", "uvicorn.access", "uvicorn.error",
-            "fastapi", "starlette",
-        ]
-        for name in _suppress_loggers:
-            _logging.getLogger(name).setLevel(_logging.WARNING)
-
-        # Redirect stdout/stderr to suppress any stray print() output
-        _devnull = io.StringIO()
-        _old_stdout, _old_stderr = _sys.stdout, _sys.stderr
-        _sys.stdout = _devnull
-        _sys.stderr = _devnull
         try:
             result = live_cycle()
             r = result.get("results", {}) if isinstance(result, dict) else {}
@@ -779,11 +796,15 @@ def cron_run():
                 "m": r.get("positions_monitored", 0),
             }
         except Exception as e:
-            logger.error("CRON cycle failed: %s", e)
             return {"ok": False, "err": str(e)[:100]}
-        finally:
-            _sys.stdout, _sys.stderr = _old_stdout, _old_stderr
-            for name in _suppress_loggers:
-                _logging.getLogger(name).setLevel(_prev_level)
+
     except Exception as e:
         return {"ok": False, "err": str(e)[:100]}
+
+    finally:
+        # ── Restore everything ──────────────────────────────────────────────
+        _sys.stdout, _sys.stderr = _old_stdout, _old_stderr
+        for h, original_stream in _patched_handlers:
+            h.stream = original_stream
+        for name in _suppress_loggers:
+            _logging.getLogger(name).setLevel(_prev_levels[name])
