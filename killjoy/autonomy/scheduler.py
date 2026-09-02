@@ -139,13 +139,24 @@ class KilljoyScheduler:
         self._report.set_positions_checked(len(open_trades))
 
         # 1a. EOD strategy: sell profitable positions before close
+        eod_closed_symbols: set[str] = set()
         try:
             from datetime import timedelta as _td
             try:
                 from zoneinfo import ZoneInfo
                 et = datetime.now(ZoneInfo("America/New_York"))
             except Exception:
-                et = datetime.now(timezone.utc) + _td(hours=-4)  # EDT fallback
+                # Fallback: use UTC and manually compute Eastern time
+                utc_now = datetime.now(timezone.utc)
+                # Approximate EST/EDT: EST = UTC-5, EDT = UTC-4
+                # DST starts 2nd Sunday of March, ends 1st Sunday of November
+                month, day, weekday = utc_now.month, utc_now.day, utc_now.weekday()
+                is_dst = (
+                    (month > 3 or (month == 3 and day >= 8 and weekday == 6))
+                    and (month < 11 or (month == 11 and day < 8 and weekday != 6))
+                )
+                offset_hours = -4 if is_dst else -5
+                et = utc_now + _td(hours=offset_hours)
             market_close = et.replace(hour=16, minute=0, second=0, microsecond=0)
             minutes_to_close = (market_close - et).total_seconds() / 60
 
@@ -159,18 +170,23 @@ class KilljoyScheduler:
 
                 for pos_snap in list(self._portfolio._positions):
                     sym_pnl = float(getattr(pos_snap, "unrealized_pl", 0) or 0)
-                    should_close = (total_pnl > 0) or (sym_pnl > 0)
+                    should_close = (total_pnl > 0) and (sym_pnl > 0)
                     if should_close:
                         logger.info("EOD CLOSE %s: P&L $%.2f (portfolio: $%.2f)", pos_snap.symbol, sym_pnl, total_pnl)
                         if not self._dry_run and self._executor:
                             order_result = self._executor.close_position(pos_snap.symbol)
                             if order_result.status != "failed":
                                 # Find matching journal entry and record exit
+                                matched = False
                                 for trade in open_trades:
                                     if trade.underlying == _extract_underlying(pos_snap.symbol):
                                         self._journal.record_exit(trade.trade_id, sym_pnl, "closed_eod", order_result.order_id)
+                                        matched = True
                                         break
+                                if not matched:
+                                    logger.warning("EOD: no journal match for %s — exit not recorded", pos_snap.symbol)
                                 results["positions_closed"] += 1
+                                eod_closed_symbols.add(_extract_underlying(pos_snap.symbol))
                                 self._event_log.log("eod_close", run_id, symbol=pos_snap.symbol, data={
                                     "pnl": sym_pnl,
                                     "portfolio_pnl": total_pnl,
@@ -178,7 +194,7 @@ class KilljoyScheduler:
                         else:
                             logger.info("EOD DRY RUN: Would close %s", pos_snap.symbol)
                             results["positions_closed"] += 1
-                return results
+                            eod_closed_symbols.add(_extract_underlying(pos_snap.symbol))
         except Exception as e:
             logger.debug("EOD check skipped: %s", e)
 
@@ -186,6 +202,10 @@ class KilljoyScheduler:
             try:
                 symbol = trade.underlying
                 if not symbol:
+                    continue
+
+                # Skip positions already closed by EOD
+                if symbol in eod_closed_symbols:
                     continue
 
                 # Find matching position from portfolio
