@@ -160,8 +160,8 @@ class KilljoyScheduler:
             market_close = et.replace(hour=16, minute=0, second=0, microsecond=0)
             minutes_to_close = (market_close - et).total_seconds() / 60
 
-            if 0 <= minutes_to_close <= 5:
-                # Near market close — EOD logic
+            if 0 <= minutes_to_close <= 30:
+                # Near market close — EOD logic (30 min window to match cron interval)
                 total_pnl = sum(
                     float(getattr(p, "unrealized_pl", 0) or 0)
                     for p in self._portfolio._positions
