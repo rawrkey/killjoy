@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +21,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from killjoy.config.settings import Settings, get_settings
 
 logger = logging.getLogger("killjoy.api")
+
+# ── Singleton state — persists across API calls ───────────────────────────────
+from killjoy.database.repository import TradeJournal
+from killjoy.portfolio.manager import PortfolioManager
+from killjoy.autonomy.scheduler import KilljoyScheduler
+
+_journal = TradeJournal()
+_portfolio = PortfolioManager()
+_scheduler: KilljoyScheduler | None = None
 
 # ── Autonomous mode state ────────────────────────────────────────────────────
 _autonomous_enabled = False
@@ -180,41 +190,42 @@ def orders():
 @app.get("/api/analyze")
 def analyze():
     """Analyze market for top 5 symbols using deterministic agents (fast, no LLM)."""
-    settings = get_settings()
-    from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
-    from killjoy.agent.llm_analyst import analyze_market_llm
-    from killjoy.llm.provider import LLMProvider
+    try:
+        settings = get_settings()
+        from killjoy.alpaca.market_data import MarketDataClient, DEFAULT_UNIVERSE
+        from killjoy.agent.llm_analyst import analyze_market_llm
 
-    market_data = MarketDataClient(settings)
-    # Use None for LLM to skip LLM calls — deterministic is instant
-    results = []
-    for symbol in DEFAULT_UNIVERSE[:5]:
-        try:
-            thesis = analyze_market_llm(market_data, symbol, None)
-            results.append({
-                "symbol": symbol,
-                "regime": thesis.regime.value,
-                "confidence": round(float(thesis.confidence), 2),
-                "price": _decimal_to_str(thesis.current_price),
-                "thesis": thesis.thesis,
-                "observations": thesis.observations[:3] if thesis.observations else [],
-                "llm": "deterministic",
-            })
-        except Exception as e:
-            results.append({"symbol": symbol, "error": str(e)})
-    return {"analyses": results, "llm": "deterministic"}
+        market_data = MarketDataClient(settings)
+        # Use None for LLM to skip LLM calls — deterministic is instant
+        results = []
+        for symbol in DEFAULT_UNIVERSE[:5]:
+            try:
+                thesis = analyze_market_llm(market_data, symbol, None)
+                results.append({
+                    "symbol": symbol,
+                    "regime": thesis.regime.value,
+                    "confidence": round(float(thesis.confidence), 2),
+                    "price": _decimal_to_str(thesis.current_price),
+                    "thesis": thesis.thesis,
+                    "observations": thesis.observations[:3] if thesis.observations else [],
+                    "llm": "deterministic",
+                })
+            except Exception as e:
+                results.append({"symbol": symbol, "error": str(e)})
+        return {"analyses": results, "llm": "deterministic"}
+    except Exception as e:
+        logger.error("Analyze endpoint failed: %s", e)
+        return {"analyses": [], "error": str(e), "llm": "deterministic"}
 
 
 @app.get("/api/paper-cycle")
 def paper_cycle():
     """Run one dry-run paper cycle with LLM agents."""
+    global _scheduler
     settings = get_settings()
     from killjoy.alpaca.trading import AlpacaTradingClient
     from killjoy.alpaca.market_data import MarketDataClient
     from killjoy.alpaca.options_data import OptionsDataClient
-    from killjoy.portfolio.manager import PortfolioManager
-    from killjoy.database.repository import TradeJournal
-    from killjoy.autonomy.scheduler import KilljoyScheduler
     from killjoy.agent.models import AccountSnapshot, PositionSnapshot
     from killjoy.llm.provider import LLMProvider
 
@@ -224,7 +235,6 @@ def paper_cycle():
 
     market_data = MarketDataClient(settings)
     options_data = OptionsDataClient(settings)
-    portfolio = PortfolioManager()
 
     llm = LLMProvider(
         api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
@@ -251,20 +261,22 @@ def paper_cycle():
         )
         for p in positions
     ]
-    portfolio.update(acc_snap, pos_snaps)
+    _portfolio.update(acc_snap, pos_snaps)
 
-    journal = TradeJournal()
-    scheduler = KilljoyScheduler(
-        market_data=market_data,
-        options_data=options_data,
-        executor=None,
-        portfolio=portfolio,
-        journal=journal,
-        llm=llm,
-        dry_run=True,
-    )
+    if _scheduler is None:
+        _scheduler = KilljoyScheduler(
+            market_data=market_data,
+            options_data=options_data,
+            executor=None,
+            portfolio=_portfolio,
+            journal=_journal,
+            llm=llm,
+            dry_run=True,
+        )
+    else:
+        _scheduler._dry_run = True
 
-    results = scheduler.run_once()
+    results = _scheduler.run_once()
     results["llm"] = "active" if llm.is_available else "deterministic"
     return {"results": results}
 
@@ -272,13 +284,11 @@ def paper_cycle():
 @app.get("/api/live-cycle", dependencies=[Depends(verify_control_secret)])
 def live_cycle():
     """Run one LIVE paper cycle — orders will be submitted to Alpaca."""
+    global _scheduler
     settings = get_settings()
     from killjoy.alpaca.trading import AlpacaTradingClient
     from killjoy.alpaca.market_data import MarketDataClient
     from killjoy.alpaca.options_data import OptionsDataClient
-    from killjoy.portfolio.manager import PortfolioManager
-    from killjoy.database.repository import TradeJournal
-    from killjoy.autonomy.scheduler import KilljoyScheduler
     from killjoy.execution.executor import Executor
     from killjoy.agent.models import AccountSnapshot, PositionSnapshot
     from killjoy.llm.provider import LLMProvider
@@ -289,7 +299,6 @@ def live_cycle():
 
     market_data = MarketDataClient(settings)
     options_data = OptionsDataClient(settings)
-    portfolio = PortfolioManager()
 
     llm = LLMProvider(
         api_key=settings.killjoy_llm_api_key.get_secret_value() if settings.killjoy_llm_api_key else "",
@@ -316,21 +325,24 @@ def live_cycle():
         )
         for p in positions
     ]
-    portfolio.update(acc_snap, pos_snaps)
+    _portfolio.update(acc_snap, pos_snaps)
 
-    journal = TradeJournal()
-    executor = Executor(trading_client._client, journal=journal)
-    scheduler = KilljoyScheduler(
-        market_data=market_data,
-        options_data=options_data,
-        executor=executor,
-        portfolio=portfolio,
-        journal=journal,
-        llm=llm,
-        dry_run=False,
-    )
+    executor = Executor(trading_client._client, journal=_journal)
+    if _scheduler is None:
+        _scheduler = KilljoyScheduler(
+            market_data=market_data,
+            options_data=options_data,
+            executor=executor,
+            portfolio=_portfolio,
+            journal=_journal,
+            llm=llm,
+            dry_run=False,
+        )
+    else:
+        _scheduler._executor = executor
+        _scheduler._dry_run = False
 
-    results = scheduler.run_once()
+    results = _scheduler.run_once()
     results["llm"] = "active" if llm.is_available else "deterministic"
     results["mode"] = "LIVE"
     return {"results": results}
