@@ -2,25 +2,12 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
-
-# ── Suppress ALL stdout/stderr at the fd level ──────────────────────────────
-# Render free tier sleeps the service; cold-starts produce huge stdout that
-# cron-job.org captures as "output too large". Redirect real file descriptors
-# to /devnull so NO process-level output escapes.
-_devnull_fd = os.open(os.devnull, os.O_WRONLY)
-_orig_stdout_fd = os.dup(1)
-_orig_stderr_fd = os.dup(2)
-os.dup2(_devnull_fd, 1)
-os.dup2(_devnull_fd, 2)
-os.close(_devnull_fd)
 
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -702,12 +689,6 @@ def autonomous_toggle():
     return {"enabled": _autonomous_enabled}
 
 
-@app.get("/api/cron/health", dependencies=[Depends(verify_control_secret)])
-def cron_health():
-    """Minimal health endpoint — returns tiny JSON with zero processing."""
-    return {"ok": True}
-
-
 @app.get("/api/cron/run", dependencies=[Depends(verify_control_secret)])
 def cron_run():
     """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
@@ -765,17 +746,7 @@ def cron_run():
         pass
 
     # Market is open — run live cycle
-    # fd-level redirect at module top already suppresses process output;
-    # also suppress Python-level logging as belt-and-suspenders
-    _prev_handlers = logging.root.handlers[:]
-    _prev_level = logging.root.level
-    _devnull = open(os.devnull, "w", encoding="utf-8")
     try:
-        logging.root.handlers = [logging.StreamHandler(_devnull)]
-        logging.root.setLevel(logging.WARNING)
-        for name in list(logging.Logger.manager.loggerDict):
-            logging.getLogger(name).setLevel(logging.WARNING)
-
         result = live_cycle()
         r = result.get("results", {}) if isinstance(result, dict) else {}
         return {
@@ -787,9 +758,3 @@ def cron_run():
         }
     except Exception as e:
         return {"ok": False, "err": str(e)[:100]}
-    finally:
-        _devnull.close()
-        logging.root.handlers = _prev_handlers
-        logging.root.setLevel(_prev_level)
-        for name in list(logging.Logger.manager.loggerDict):
-            logging.getLogger(name).setLevel(logging.NOTSET)
