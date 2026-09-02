@@ -701,6 +701,12 @@ def autonomous_toggle():
     return {"enabled": _autonomous_enabled}
 
 
+@app.get("/api/cron/health", dependencies=[Depends(verify_control_secret)])
+def cron_health():
+    """Minimal health endpoint for external monitors (UptimeRobot, etc)."""
+    return {"ok": True}
+
+
 @app.get("/api/cron/run", dependencies=[Depends(verify_control_secret)])
 def cron_run():
     """Cron endpoint — runs one live cycle if autonomous mode is on and market is open.
