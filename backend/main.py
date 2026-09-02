@@ -11,6 +11,17 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+# ── Suppress ALL stdout/stderr at the fd level ──────────────────────────────
+# Render free tier sleeps the service; cold-starts produce huge stdout that
+# cron-job.org captures as "output too large". Redirect real file descriptors
+# to /devnull so NO process-level output escapes.
+_devnull_fd = os.open(os.devnull, os.O_WRONLY)
+_orig_stdout_fd = os.dup(1)
+_orig_stderr_fd = os.dup(2)
+os.dup2(_devnull_fd, 1)
+os.dup2(_devnull_fd, 2)
+os.close(_devnull_fd)
+
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -748,16 +759,12 @@ def cron_run():
         pass
 
     # Market is open — run live cycle
-    # Redirect ALL stdout/stderr to /dev/null during cron to avoid "output too large" on cron-job.org
-    import sys
-    _prev_stdout = sys.stdout
-    _prev_stderr = sys.stderr
+    # fd-level redirect at module top already suppresses process output;
+    # also suppress Python-level logging as belt-and-suspenders
     _prev_handlers = logging.root.handlers[:]
     _prev_level = logging.root.level
     _devnull = open(os.devnull, "w", encoding="utf-8")
     try:
-        sys.stdout = _devnull
-        sys.stderr = _devnull
         logging.root.handlers = [logging.StreamHandler(_devnull)]
         logging.root.setLevel(logging.WARNING)
         for name in list(logging.Logger.manager.loggerDict):
@@ -765,9 +772,6 @@ def cron_run():
 
         result = live_cycle()
         r = result.get("results", {}) if isinstance(result, dict) else {}
-        # Restore stdout before writing response
-        sys.stdout = _prev_stdout
-        sys.stderr = _prev_stderr
         return {
             "ok": True,
             "s": "ran",
@@ -776,12 +780,8 @@ def cron_run():
             "m": r.get("positions_monitored", 0),
         }
     except Exception as e:
-        sys.stdout = _prev_stdout
-        sys.stderr = _prev_stderr
         return {"ok": False, "err": str(e)[:100]}
     finally:
-        sys.stdout = _prev_stdout
-        sys.stderr = _prev_stderr
         _devnull.close()
         logging.root.handlers = _prev_handlers
         logging.root.setLevel(_prev_level)
