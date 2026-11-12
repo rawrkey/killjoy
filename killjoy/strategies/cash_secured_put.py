@@ -78,3 +78,4 @@ class CashSecuredPutStrategy(StrategyBase):
                 "iv_rank": float(thesis.iv_rank),
             },
         )
+

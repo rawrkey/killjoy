@@ -1,415 +1,499 @@
 # KILLJOY
 
-> **The AI That Trades Against Itself**
-
-An autonomous AI options trading agent that uses adversarial AI debate to challenge every trade before execution. The AI proposes, the AI attacks, the risk engine decides, and Alpaca executes on paper.
-
-**Built for the Alpaca AI Hackathon**
+> **The Autonomous Options Trading Agent with Adversarial AI Debate**  
+> *The AI Proposes. The AI Attacks. The Risk Engine Decides. Alpaca Executes on Paper.*
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-115_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing)
-[![Paper Only](https://img.shields.io/badge/mode-paper_only-FFD600?style=flat&logo=shield&logoColor=black)](#safety)
+[![Tests](https://img.shields.io/badge/tests-113_passing-00C853?style=flat&logo=pytest&logoColor=white)](#testing--verification)
+[![Paper Only](https://img.shields.io/badge/mode-paper_only_enforced-FFD600?style=flat&logo=shield&logoColor=black)](#security--paper-only-guarantee)
+[![Agensi.io](https://img.shields.io/badge/agensi.io-ready_skill-6366F1?style=flat&logo=codewars&logoColor=white)](#agensiio--agent-skill-integration)
+[![Zero-Config Sandbox](https://img.shields.io/badge/sandbox-zero_config-10B981?style=flat)](#zero-config-sandbox-mode)
+[![Next.js 15](https://img.shields.io/badge/frontend-Next.js_15-000000?style=flat&logo=next.js&logoColor=white)](#institutional-trading-terminal)
 
 ---
 
-## How It Works
+## Table of Contents
 
-KILLJOY runs a 9-stage autonomous pipeline where multiple AI agents analyze, propose, challenge, and validate every trade:
-
-1. **Market Data** — Real-time quotes and options chains from Alpaca
-2. **Market Analyst** — Analyzes momentum, regime, and volatility (deterministic + optional LLM reasoning)
-3. **Strategy Agent** — Selects the best options strategy (rule-based + optional LLM enhancement)
-4. **Trade Proposal** — Structured proposal with legs, Greeks, and R/R
-5. **Kill Agent** — Adversarially attacks the proposal (rule-based + optional LLM debate)
-6. **Adversarial Debate** — Trader and Kill Agent argue back and forth
-7. **Portfolio Check** — Concentration and exposure limits
-8. **Risk Engine** — 8 deterministic gates with final veto authority
-9. **Alpaca Execution** — Paper order submission via Alpaca
-
-### Modes
-
-| Mode | Description |
-| --- | --- |
-| **Deterministic** (default) | Rule-based agents with quantitative analysis. Fast, reliable, no API costs. |
-| **LLM-Enhanced** (optional) | Add a Groq API key for natural language reasoning on top of the same agents. |
-
-The system is designed to work fully in deterministic mode. The LLM is an optional layer that adds natural language thesis generation and adversarial debate — the underlying trade logic is identical.
-
-### Auto-Sell
-
-Every cycle also monitors existing positions and auto-sells when thresholds are hit:
-
-| Trigger | Threshold | Description |
-| --- | --- | --- |
-| Take-Profit | +50% | Close winning positions automatically |
-| Stop-Loss | -20% | Cut losses before they deepen |
-| Trailing Stop | -10% from peak | Protect profits from reversal (dollar-based) |
-| Time Exit | 45 days | Close stale positions |
-
-### End-of-Day Strategy
-
-In the last 5 minutes before market close (3:55–4:00 PM ET):
-- **Portfolio in profit** → sell all positions
-- **Portfolio in loss** → sell only profitable positions
+- [Why KILLJOY?](#why-killjoy)
+- [How It Works: 9-Stage Pipeline](#how-it-works-9-stage-pipeline)
+- [Zero-Config Sandbox Mode](#zero-config-sandbox-mode)
+- [Agensi.io & Agent Skill Integration](#agensiio--agent-skill-integration)
+- [Command Line Interface (CLI)](#command-line-interface-cli)
+- [Supported Options Strategies](#supported-options-strategies)
+- [Deterministic 8-Gate Risk Engine](#deterministic-8-gate-risk-engine)
+- [The Adversarial Kill Agent](#the-adversarial-kill-agent)
+- [Autonomous Execution & Safeguards](#autonomous-execution--safeguards)
+- [Institutional Trading Terminal](#institutional-trading-terminal)
+- [Capital Saved & Audit Analytics](#capital-saved--audit-analytics)
+- [API Reference](#api-reference)
+- [Project Architecture](#project-architecture)
+- [Quick Start](#quick-start)
+- [Testing & Verification](#testing--verification)
+- [Security & Paper-Only Guarantee](#security--paper-only-guarantee)
+- [License & Disclaimer](#license--disclaimer)
 
 ---
 
-## Autonomous Mode
+## Why KILLJOY?
 
-KILLJOY can run fully autonomously — no browser tab needed.
+Most LLM trading agents suffer from **fatal flaws**:
+1. **Bullish Hallucination & Confirmation Bias**: LLMs naturally rationalize trades and fall victim to recency bias.
+2. **Missing Risk Guardrails**: Prompt-engineered "risk management" can be bypassed by edge cases or model drift.
+3. **Black-Box Execution**: Trades are placed without audit trails, counterfactual tracking, or explainability.
 
-1. **Enable on Dashboard** — Click "Start Auto-Trading" during market hours
-2. **Cron job pings backend** every 30 minutes via cron-job.org
-3. **Backend checks market hours** — only runs Mon-Fri 9:30 AM – 4:00 PM ET
-4. **Each cycle**: monitors positions → closes winners/losers → scans for new entries → submits orders
-5. **Disable anytime** — Click "Stop Auto-Trading" or disable the cron job
+**KILLJOY solves this by trading against itself.**
 
-### Safety Features
+```
+       +-------------------------------------------------------------+
+       |                     PROPOSAL PHASE                          |
+       |  Market Analyst + Strategy Agent generate trade candidate   |
+       +------------------------------+------------------------------+
+                                      |
+                                      v
+       +-------------------------------------------------------------+
+       |                   ADVERSARIAL ATTACK                        |
+       |  Kill Agent runs 6 stress tests to disprove thesis & abort  |
+       +------------------------------+------------------------------+
+                                      |
+                                      v
+       +-------------------------------------------------------------+
+       |                   DETERMINISTIC VETO                        |
+       |  8 Hard Mathematical Risk Gates (Model CANNOT bypass)       |
+       +------------------------------+------------------------------+
+                                      |
+                                      v
+       +-------------------------------------------------------------+
+       |                 EXECUTION & VERIFICATION                    |
+       |  Alpaca Paper Submission + Decision Receipts + Capital Log  |
+       +-------------------------------------------------------------+
+```
 
-- **Concurrency lock** — Prevents overlapping cron executions
-- **Daily loss circuit breaker** — Stops trading if daily P&L drops below -$800
-- **Duplicate prevention** — Blocks any trade on an underlying with an open position
-- **First 15 min wait** — Skips trading immediately after market open (wide spreads)
-- **Stale quote detection** — Rejects data older than 60 seconds
-
----
-
-## The Kill Agent
-
-The Kill Agent is KILLJOY's defining feature. It is an AI agent whose **sole purpose is to find reasons to reject every trade**. It actively tries to disprove the thesis and kill the proposal.
-
-In deterministic mode, the Kill Agent runs 6 adversarial checks (momentum reversal, IV crush, liquidity, thesis contradiction, risk/reward, and timing). With LLM enabled, it also generates natural language objections and engages in multi-round debate.
-
-When the deterministic Kill Agent passes a trade (score >= 0.30), the LLM Kill Agent is **skipped entirely** to save tokens.
-
-### Kill Score
-
-| Score | Rating | Meaning |
-| --- | --- | --- |
-| `0.00 - 0.20` | **KILL** | Major red flags, trade is dead |
-| `0.20 - 0.40` | **WEAK** | Significant concerns, likely reject |
-| `0.40 - 0.60` | **MARGINAL** | Some concerns, proceed with caution |
-| `0.60 - 0.80` | **DECENT** | Minor concerns, acceptable |
-| `0.80 - 1.00` | **STRONG** | Few or no concerns, should proceed |
+Every single trade must survive an adversarial gauntlet. If the Kill Agent detects IV crush, liquidity traps, or momentum decay, the trade is discarded. If the deterministic Risk Engine detects breached exposure caps, the trade is vetoed with zero exceptions.
 
 ---
 
-## Risk Engine
+## How It Works: 9-Stage Pipeline
 
-8 deterministic gates that the AI cannot bypass:
+```
+[1. Market Data] ──> [2. Market Analyst] ──> [3. Strategy Agent]
+                                                     │
+                                                     ▼
+[6. Debate/Refine] <── [5. Kill Agent] <── [4. Trade Proposal]
+        │
+        ▼
+[7. Portfolio Check] ──> [8. Risk Engine] ──> [9. Alpaca Paper Order]
+```
 
-| Gate | Limit | Description |
-| --- | --- | --- |
-| Max Risk/Trade | $1,000 | Maximum loss per single trade |
-| Daily Loss Limit | $800 | Circuit breaker stops trading |
-| Min Reward/Risk | 1.5 | Minimum reward-to-risk ratio |
-| Min Confidence | 0.25 | Minimum strategy confidence |
-| Max IV Rank | 70% | Reject high implied volatility |
-| Max Positions | 10 | Maximum concurrent positions |
-| Min Buying Power | $500 | Minimum required buying power |
-| Options Exposure | $10,000 | Maximum total options exposure |
-
-The risk engine has **final veto authority**. Even if every AI agent approves a trade, the risk engine can kill it.
-
-### Position Sizing
-
-Position size is capped by three constraints:
-- **5% of buying power** per trade
-- **$1,000 max risk** per trade (MAX_RISK / max_loss_per_contract)
-- **Maximum 5 contracts** per trade
+1. **Market Data Ingestion** — Real-time quote bars and option chains via Alpaca Market Data API (or Zero-Config Sandbox when offline).
+2. **Market Analyst** — Computes ATR, RSI, momentum velocity, moving average regimes, and volatility rank.
+3. **Strategy Agent** — Maps regime to suitable options structure (Long Call, Long Put, Spreads, Condor, Cash-Secured Put).
+4. **Trade Proposal Generator** — Builds exact contract specifications, strike spacing, DTE window (7–45 days), and Greeks ($\Delta, \Gamma, \Theta, \text{Vega}$).
+5. **Kill Agent Attack** — Subject proposal to 6 adversarial stress tests (Momentum Reversal, IV Crush, Bid-Ask Spread Drag, Thesis Contradiction, R/R Skew, Timing Decay).
+6. **Adversarial Debate** — Trader agent and Kill agent exchange counter-theses (Groq/OpenAI LLM or rule-based deterministic reasoning).
+7. **Portfolio Correlation Check** — Evaluates existing asset concentration and prevents duplicate underlying exposure.
+8. **Deterministic Risk Engine** — 8 mathematical limits evaluate risk/reward, buying power, and daily circuit breakers with final veto power.
+9. **Alpaca Paper Execution** — Submits limit/market orders to Alpaca Paper Trading API and generates a cryptographically sound decision receipt.
 
 ---
 
-## LLM Architecture
+## Zero-Config Sandbox Mode
 
-KILLJOY uses a hybrid architecture where deterministic logic provides the safety foundation and LLM reasoning adds qualitative intelligence.
+You do **not** need an Alpaca account or any API keys to evaluate, test, or run KILLJOY.
 
-Each agent has two files:
+When credentials are omitted, KILLJOY automatically activates **Zero-Config Sandbox Mode**:
+- **Simulated Market Feeds**: Synthetic 20-bar daily candlesticks and live snapshots for major underlyings (`SPY`, `NVDA`, `AAPL`, `MSFT`, `TSLA`, `AMD`, `QQQ`, `AMZN`).
+- **Realistic Options Chains**: Generates OCC-formatted options chains across 14, 30, and 45 DTE with accurate strikes, bid-ask spreads, and Black-Scholes Greeks.
+- **Dry-Run Paper Cycles**: Run full 9-stage pipeline simulations with zero risk and zero external network calls.
 
-- **`analyst.py`** / **`kill_agent.py`** / **`strategy_agent.py`** — Deterministic baseline. Pure rule-based logic that always runs. This is the safety fallback.
-- **`llm_analyst.py`** / **`llm_kill.py`** / **`llm_strategy.py`** — LLM wrapper. Calls the deterministic version first, then enhances with AI reasoning.
+```bash
+# Run analysis on NVDA without any API keys
+python main.py --symbol NVDA --analyze
 
-1. Call deterministic version to get quantitative baseline
-2. If LLM is available, serialize features and get structured AI response
-3. Merge: deterministic data stays primary, AI adds qualitative reasoning
-4. If LLM fails (429, timeout, etc.), return deterministic result unchanged
-
-Each symbol's analysis tracks its **source** (`[LLM]` or `[DETERMINISTIC]`) so you know exactly which mode produced the result.
-
-### Current Provider: Groq
-
-| Setting | Value |
-| --- | --- |
-| Provider | Groq (free tier) |
-| Model | `qwen/qwen3.8-27b` |
-| Max tokens | 512 |
-| Timeout | 10s |
-| Retries | 0 (fall back to deterministic immediately) |
-| Daily token limit | 200,000 TPD |
-
-The LLM **cannot bypass safety** — deterministic gates have final veto.
-
-### Supported Providers
-
-Any OpenAI-compatible endpoint works: Groq, OpenAI, Cerebras, Mistral, Ollama, vLLM, LiteLLM.
+# Propose a Cash-Secured Put on SPY without any API keys
+python main.py --symbol SPY --strategy cash_secured_put --propose
+```
 
 ---
 
-## Options Strategies
+## Agensi.io & Agent Skill Integration
 
-5 built-in strategies, each filtered by market regime:
+KILLJOY is packaged as a ready-to-sell, drop-in **Agent Skill** for [Agensi.io](https://www.agensi.io), Claude Code, Cursor, Codex, and other agentic runners.
 
-| Strategy | Regime | Description |
-| --- | --- | --- |
-| Long Call | Strong Uptrend | Bullish directional play (R/R capped at 5x) |
-| Long Put | Strong Downtrend | Bearish directional play (R/R capped at 5x) |
-| Bull Call Spread | Mild Uptrend | Defined-risk bullish |
-| Bear Put Spread | Mild Downtrend | Defined-risk bearish |
-| Iron Condor | Sideways | Range-bound income |
+Skill specification file: [`skills/killjoy/SKILL.md`](skills/killjoy/SKILL.md) (and [`.agents/skills/killjoy/SKILL.md`](.agents/skills/killjoy/SKILL.md)).
 
-Each strategy filters by regime, selects optimal DTE (7-45 days), checks liquidity, computes precise R/R, and passes through the Kill Agent. Proposals are sorted by `confidence * reward_risk` and only the top 1 per symbol is processed for speed.
+### Running Inside Claude Code, Cursor, or Codex
 
----
+Agents can invoke KILLJOY commands directly through terminal tools:
 
-## Analytics Dashboard
+```bash
+# 1. Inspect market regime for an underlying
+python main.py --symbol NVDA --analyze
 
-### Kill Precision
-Tracks how accurate the Kill Agent is — what percentage of killed trades would have lost, and what percentage of approved trades actually won.
+# 2. Generate a proposed options structure
+python main.py --symbol SPY --strategy cash_secured_put --propose
 
-### Counterfactual Portfolio
-Simulates "what if we submitted rejected trades?" — tracks simulated P&L of the trades the Kill Agent blocked.
+# 3. Put a user or agent trade through the Kill Gauntlet
+python main.py --symbol TSLA --strategy long_call --kill-test
 
-### Decision Receipts
-Full audit trail for every trade decision — which agents approved, which disagreed, kill score, risk check results, and outcome.
+# 4. View total capital saved by rejected trades
+python main.py --capital-saved
+```
 
-### Strategy Graveyard
-Tracks every strategy's lifecycle — wins, losses, current kill rate, and average P&L. Shows which strategies are working and which are dead.
+### Marketplace Listing & Revenue Model
 
-### Agent Disagreement
-Measures when the analyst, strategy agent, and kill agent disagree. High disagreement = high uncertainty.
-
-### Judge Mode
-One-page hackathon overview — shows all key metrics, pipeline status, and agent performance at a glance.
+KILLJOY is optimized for monetization on the Agensi.io marketplace:
+- **Zero-Setup Barrier**: Runs on sandbox data out of the box; connects to user Alpaca keys for live paper trading.
+- **Value Demonstration**: The `--capital-saved` command quantifies the exact dollar value preserved by rejecting flawed trades.
+- See [`AGENSI.md`](AGENSI.md) for full pricing strategy, listing copy, and publisher documentation.
 
 ---
 
-## Deployment
+## Command Line Interface (CLI)
 
-### Backend (Render)
+KILLJOY features an on-demand CLI for granular scrutiny of single underlyings and strategies:
 
-1. Push to GitHub
-2. Connect repo to [Render](https://render.com)
-3. Auto-deploys on push (free tier)
+### 1. Market Analysis (`--analyze`)
+Analyzes market regime, momentum, ATR, and volatility rank.
+```bash
+python main.py --symbol NVDA --analyze
+```
+```text
+=== Market Analysis: NVDA ===
+Price:            $128.50
+Regime:           STRONG_UPTREND
+Momentum:         0.0420
+RSI:              64.2
+ATR:              $3.85
+IV Rank:          0.42 (42.0%)
+Thesis:           Strong upward momentum with healthy RSI headroom
+```
 
-### Frontend (Vercel)
+### 2. Strategy Proposal (`--propose`)
+Synthesizes market conditions and produces an options contract proposal.
+```bash
+python main.py --symbol SPY --strategy cash_secured_put --propose
+```
+```text
+=== Trade Proposal: SPY ===
+Strategy:         CASH_SECURED_PUT
+Action:           SELL TO OPEN 1x SPY 30DTE 570.00 Put
+Max Profit:       $480.00
+Max Loss:         $56,520.00
+Reward/Risk:      0.085
+Confidence:       0.75
+Reasoning:        High probability premium harvest in mild bullish regime
+```
 
-1. Push to GitHub
-2. Connect repo to [Vercel](https://vercel.com)
-3. Set environment variable: `NEXT_PUBLIC_API_URL=<your-render-url>`
-4. Auto-deploys on push
+### 3. Adversarial Kill-Test (`--kill-test`)
+Sends any proposed trade through the Kill Agent's 6 adversarial filters.
+```bash
+python main.py --symbol TSLA --strategy long_call --kill-test
+```
+```text
+=== Adversarial Kill Test: TSLA ===
+Score:            0.20 (KILL)
+Verdict:          REJECTED - Excessive IV crush risk and deteriorating volume
+Kill Objections:
+  - IV Rank exceeds 70th percentile (IV crush post-earnings imminent)
+  - Bid-ask spread ($0.35) exceeds 5% of mid-price (liquidity drag)
+  - Momentum divergence detected on 4-hour timeframe
+```
 
-### Autonomous Mode (cron-job.org)
+### 4. Capital Saved Audit (`--capital-saved`)
+Aggregates all trades killed by the agent and shows total capital protected.
+```bash
+python main.py --capital-saved
+```
+```text
+=== Capital Saved by Killjoy ===
+Total Trades Screened: 48
+Trades Executed:       11
+Trades Killed:         37
+Kill Rate:             77.1%
+Capital Protected:     $24,650.00
+Simulated P&L of Kills: -$4,120.00 (Losses Avoided)
+```
 
-1. Create free account at [cron-job.org](https://cron-job.org)
-2. Create cron job:
-   - URL: `<your-render-url>/api/cron/run`
-   - Schedule: `*/30 * * * *` (every 30 minutes)
-3. Click "Start Auto-Trading" on the dashboard
+### 5. Single Decision Cycle (`--paper-cycle`)
+Executes an end-to-end dry-run across default watchlist symbols (`SPY`, `NVDA`, `AAPL`).
+```bash
+python main.py --paper-cycle
+```
+
+---
+
+## Supported Options Strategies
+
+KILLJOY implements 6 options strategies mapped dynamically to market regime:
+
+| Strategy | Ideal Market Regime | DTE Target | Target Delta ($\Delta$) | R/R Target |
+| :--- | :--- | :--- | :--- | :--- |
+| **Long Call** | Strong Uptrend | 14–30 Days | 0.50–0.65 | $\ge 2.0$ |
+| **Long Put** | Strong Downtrend | 14–30 Days | -0.50 to -0.65 | $\ge 2.0$ |
+| **Bull Call Spread** | Mild Uptrend | 21–45 Days | Long 0.55 / Short 0.30 | $\ge 1.5$ |
+| **Bear Put Spread** | Mild Downtrend | 21–45 Days | Long -0.55 / Short -0.30 | $\ge 1.5$ |
+| **Iron Condor** | Range-Bound / Low Vol | 30–45 Days | Wings $\pm 0.15$ to $\pm 0.20$ | $\ge 0.33$ |
+| **Cash-Secured Put** | Mild Bullish / Neutral | 21–45 Days | -0.20 to -0.30 (The Wheel) | Premium Harvest |
+
+---
+
+## Deterministic 8-Gate Risk Engine
+
+The Risk Engine is mathematically deterministic. Even if an LLM is hallucinating or bullishly biased, the trade **cannot pass** if any of these 8 gates fail:
+
+| # | Gate | Threshold | Description |
+| :---: | :--- | :--- | :--- |
+| **1** | **Max Risk Per Trade** | $\le \$1,000$ | Hard cap on worst-case single-position loss |
+| **2** | **Daily Loss Circuit Breaker**| $\ge -\$800$ | Freezes trading for the remainder of the trading day |
+| **3** | **Minimum Reward-to-Risk** | $\ge 1.5\times$ | Enforces positive statistical expectancy |
+| **4** | **Minimum Confidence** | $\ge 0.25$ | Rejects low-conviction signals |
+| **5** | **Implied Volatility Rank** | $\le 70\%$ | Prevents buying into inflated options volatility |
+| **6** | **Concurrent Positions** | $\le 10$ | Controls operational overhead and spread risk |
+| **7** | **Minimum Buying Power** | $\ge \$500$ | Preserves cash reserves for slippage and maintenance |
+| **8** | **Total Options Exposure** | $\le \$10,000$ | Portfolio-level risk cap across all active legs |
+
+### Position Sizing Formula
+Contracts are strictly sized to the minimum of:
+1. $5\%$ of available buying power divided by contract premium.
+2. $\$1,000$ max loss divided by max loss per contract.
+3. Hard ceiling of **5 contracts** per trade.
+
+---
+
+## The Adversarial Kill Agent
+
+The Kill Agent is KILLJOY’s signature adversarial defense. Rather than confirming the trader's thesis, it acts as the devil's advocate.
+
+### Kill Score Matrix
+
+| Kill Score | Rating | Action Taken |
+| :--- | :--- | :--- |
+| `0.00 – 0.20` | **KILL** | Fatal flaw detected. Trade permanently rejected. |
+| `0.20 – 0.40` | **WEAK** | Significant structural risk. Rejected. |
+| `0.40 – 0.60` | **MARGINAL** | Cautionary concerns. Scaled back or vetoed by gates. |
+| `0.60 – 0.80` | **DECENT** | Minor friction. Permitted if risk gates pass. |
+| `0.80 – 1.00` | **STRONG** | High probability setup with clean market mechanics. |
+
+---
+
+## Autonomous Execution & Safeguards
+
+When running in autonomous mode (`python main.py --autonomous` or via cron trigger):
+
+- **Market Hours Gating**: Cycles execute strictly during NYSE regular trading hours (Mon–Fri, 9:30 AM – 4:00 PM ET).
+- **Opening Bell Buffer**: Skips the first 15 minutes of trading (9:30–9:45 AM ET) to avoid wide bid-ask spreads and false morning breakouts.
+- **Concurrency Locks**: Process-level lockfile prevents overlapping executions if a cycle takes longer than expected.
+- **End-of-Day (EOD) Protocol** (3:55 PM – 4:00 PM ET):
+  - If portfolio is net profitable $\to$ closes all open positions to secure gains.
+  - If portfolio is net negative $\to$ harvests profitable legs and protects underwater positions.
+- **Position Monitor**:
+  - Automatic Take-Profit at **+50%**.
+  - Automatic Stop-Loss at **-20%**.
+  - Trailing Stop at **-10% from peak**.
+  - Time-based expiration at **45 days**.
+
+---
+
+## Institutional Trading Terminal
+
+KILLJOY includes a Next.js 15 command center designed for professional quantitative trading:
+
+- **Obsidian / Zinc Dark Theme**: Monospace typography (`tabular-nums`), high-contrast state badges, and glassmorphic telemetry cards.
+- **Live NYSE ET Clock & Countdown**: Real-time synchronization showing current market state and countdown to open/close.
+- **Interactive 9-Stage Pipeline Visualizer**: Step through each phase from data ingestion to execution.
+- **Real-Time 8-Gate Risk Telemetry**: Visual indicator pills showing pass/warn/fail status for every risk gate.
+- **Counterfactual Loss Prevention Board**: Real-time dollar tracking of losses prevented by the Kill Agent.
+
+To launch the web interface:
+```bash
+# Terminal 1: Backend API
+python -m uvicorn backend.main:app --port 8000
+
+# Terminal 2: Next.js Frontend
+npm run dev
+# Open http://localhost:3000
+```
+
+---
+
+## Capital Saved & Audit Analytics
+
+Every action taken by KILLJOY produces an immutable audit record:
+
+1. **Decision Receipts** (`/api/receipts`): Detailed logs recording which agents voted, disagreement metrics, and execution metadata.
+2. **"Why Not Trade?" Log** (`/api/rejections`): Captures every rejection reason for continuous postmortem analysis.
+3. **Counterfactual Portfolio** (`/api/counterfactual`): Simulates what would have happened if rejected trades had been entered, proving kill accuracy.
+4. **Strategy Graveyard** (`/api/graveyard`): Tracks decay in strategy performance and retires failing strategies.
+
+---
+
+## API Reference
+
+The FastAPI backend exposes the following endpoints (with loopback protection and authentication):
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/health` | Health check & mode status | No |
+| `GET` | `/api/check` | Alpaca paper connectivity check | No |
+| `GET` | `/api/account` | Account equity and buying power | No |
+| `GET` | `/api/positions` | Live paper positions and unrealized P&L | No |
+| `GET` | `/api/analyze` | Deterministic market analysis for watchlist | No |
+| `GET` | `/api/paper-cycle` | Dry-run decision cycle (no orders submitted) | No |
+| `POST`| `/api/live-cycle` | Execute cycle with paper order submission | Yes (Secret / Loopback) |
+| `GET` | `/api/rejections` | Rejection log and kill analytics | No |
+| `GET` | `/api/counterfactual` | Counterfactual portfolio performance | No |
+| `GET` | `/api/precision` | Kill precision score | No |
+| `GET` | `/api/receipts` | Cryptographic trade decision receipts | No |
+| `GET` | `/api/graveyard` | Strategy graveyard lifecycle statistics | No |
+| `GET` | `/api/cron/run` | Cron trigger endpoint (checks market hours) | Yes (Cron Secret) |
+
+---
+
+## Project Architecture
+
+```
+killjoy/
+├── killjoy/
+│   ├── agent/                 # AI & Deterministic Agents
+│   │   ├── analyst.py         # Technical & regime analysis
+│   │   ├── strategy_agent.py  # Strategy selection
+│   │   ├── kill_agent.py      # Adversarial challenge agent
+│   │   ├── llm_analyst.py     # Optional LLM reasoning layer
+│   │   ├── llm_strategy.py    # Optional LLM strategy layer
+│   │   ├── llm_kill.py        # Optional LLM adversarial debate
+│   │   └── models.py          # Pydantic data schemas
+│   ├── alpaca/                # Broker & Market Data Integration
+│   │   ├── client.py          # Paper-only Alpaca client
+│   │   ├── market_data.py     # Stock bars & Sandbox data generator
+│   │   ├── options_data.py    # Option chains & Sandbox OCC generator
+│   │   └── trading.py         # Paper order execution
+│   ├── risk/                  # Deterministic Risk Engine
+│   │   └── engine.py          # 8 hard risk gates
+│   ├── strategies/            # Options Strategy Definitions
+│   │   ├── base.py            # Base strategy interface
+│   │   ├── long_call.py       # Long Call
+│   │   ├── long_put.py        # Long Put
+│   │   ├── bull_call_spread.py# Bull Call Spread
+│   │   ├── bear_put_spread.py # Bear Put Spread
+│   │   ├── iron_condor.py     # Iron Condor
+│   │   └── cash_secured_put.py# Cash-Secured Put (The Wheel)
+│   ├── monitoring/            # Active Position Monitoring
+│   │   └── position_monitor.py# TP/SL, Trailing stops, Expiry
+│   ├── analytics/             # Audit & Postmortem Systems
+│   │   ├── counterfactual.py  # Rejected trade simulator
+│   │   ├── receipts.py        # Decision receipts generator
+│   │   └── graveyard.py       # Strategy lifecycle manager
+│   └── autonomy/              # Autonomous Scheduler
+│       └── scheduler.py       # Market hours & EOD liquidation loop
+├── app/                       # Next.js 15 Terminal Frontend
+├── backend/                   # FastAPI Backend Server
+├── skills/                    # Standalone Agent Skill for Agensi.io
+├── tests/                     # Pytest Suite (113 tests)
+├── main.py                    # Unified CLI Entry Point
+└── package.json               # Node.js dependencies
+```
 
 ---
 
 ## Quick Start
 
-### Install
+### 1. Prerequisites
+- Python 3.11 or higher
+- Node.js 18+ (for web terminal)
 
+### 2. Clone and Setup Environment
 ```bash
 git clone https://github.com/rawrkey/killjoy.git
 cd killjoy
+
+# Python environment
 python -m venv .venv
+# Windows:
 .venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
+
 pip install -e ".[dev,api]"
 ```
 
-### Configure
-
+### 3. Immediate Sandbox Evaluation (No Keys Required)
 ```bash
-copy .env.example .env
+# Verify system and run zero-config sandbox tests
+pytest tests/ -q
+python main.py --symbol NVDA --analyze
+python main.py --symbol SPY --strategy cash_secured_put --propose
 ```
 
-Edit `.env`:
-
+### 4. Connect Alpaca Paper Trading (Optional)
+Copy `.env.example` to `.env` and enter your paper trading keys:
 ```env
-ALPACA_API_KEY=your_alpaca_key
-ALPACA_SECRET_KEY=your_alpaca_secret
+ALPACA_API_KEY=your_alpaca_paper_key
+ALPACA_SECRET_KEY=your_alpaca_paper_secret
 ALPACA_PAPER=true
-KILLJOY_LLM_API_KEY=your_groq_key
-KILLJOY_LLM_BASE_URL=https://api.groq.com/openai/v1
+
+# Optional Groq/OpenAI key for natural language thesis debate
+KILLJOY_LLM_API_KEY=your_llm_api_key
 KILLJOY_LLM_MODEL=qwen/qwen3.8-27b
 ```
 
-### Run
+### 5. Launch Full Stack Terminal
+```bash
+# Start backend
+python -m uvicorn backend.main:app --reload --port 8000
+
+# In another terminal, start frontend
+npm install
+npm run dev
+```
+
+---
+
+## Testing & Verification
+
+KILLJOY maintains a comprehensive test suite across every component:
 
 ```bash
-python main.py --check          # Verify Alpaca connectivity
-python main.py --analyze        # LLM-enhanced market analysis
-python main.py --paper-cycle    # One complete decision cycle (dry run)
-python main.py --autonomous     # Autonomous trading loop
-```
-
-Or use the web dashboard at `http://localhost:3000`.
-
----
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/health` | GET | Health check |
-| `/api/check` | GET | Alpaca connectivity |
-| `/api/account` | GET | Account info |
-| `/api/positions` | GET | Open positions |
-| `/api/analyze` | GET | Deterministic market analysis |
-| `/api/paper-cycle` | GET | Dry-run cycle (no orders) |
-| `/api/live-cycle` | GET | Live cycle (submits orders) |
-| `/api/performance` | GET | Win rate, P&L, drawdown |
-| `/api/journal` | GET | Trade journal |
-| `/api/rejections` | GET | Rejection analytics |
-| `/api/counterfactual` | GET | Counterfactual portfolio |
-| `/api/precision` | GET | Kill precision metrics |
-| `/api/receipts` | GET | Decision receipts |
-| `/api/graveyard` | GET | Strategy graveyard |
-| `/api/disagreement` | GET | Agent disagreement |
-| `/api/judge-mode` | GET | Judge mode overview |
-| `/api/autonomous/status` | GET | Autonomous mode status |
-| `/api/autonomous/toggle` | POST | Toggle autonomous mode |
-| `/api/cron/run` | GET | Cron endpoint (market hours check) |
-| `/api/reports/last` | GET | Latest cycle report |
-| `/api/reports/all` | GET | All cycle reports |
-
----
-
-## Dashboard Pages
-
-| Page | Description |
-| --- | --- |
-| **Dashboard** | Account overview, autonomous mode toggle, performance, kill precision, counterfactual, agent disagreement |
-| **Market** | Deterministic analysis, correlation matrix, paper/live cycle buttons, latest cycle report (disabled outside market hours) |
-| **Trades** | Alpaca orders, trade journal, decision receipts, kill precision |
-| **Positions** | Open positions with live P&L |
-| **Reports** | All cycle reports — filterable by dry run vs live, expandable per-symbol breakdown |
-| **Judge Mode** | One-page hackathon overview with all key metrics |
-| **Graveyard** | Strategy lifecycle tracker — wins, losses, kill rates |
-| **Settings** | Connection config, risk parameters, strategy list |
-
----
-
-## Project Structure
-
-```
-killjoy/
-├── agent/                  AI Agents
-│   ├── analyst.py            Deterministic baseline
-│   ├── llm_analyst.py        LLM-enhanced analysis
-│   ├── strategy_agent.py     Deterministic baseline
-│   ├── llm_strategy.py       LLM-enhanced selection
-│   ├── kill_agent.py         Deterministic baseline
-│   ├── llm_kill.py           LLM adversarial + debate
-│   ├── portfolio_agent.py    Portfolio fit evaluation
-│   └── models.py             Pydantic data models
-├── llm/                    LLM Provider Abstraction
-│   └── provider.py           OpenAI-compatible provider
-├── alpaca/                 Alpaca SDK Integration
-│   ├── client.py             Paper-only read client
-│   ├── trading.py            Order submission
-│   ├── market_data.py        Stock quotes and bars
-│   └── options_data.py       Options chain and snapshots
-├── autonomy/               Autonomous Scheduler
-│   └── scheduler.py          Main trading loop with EOD, monitoring, concurrency lock
-├── strategies/             Options Strategies
-│   ├── base.py               Strategy base class
-│   ├── long_call.py          Long Call
-│   ├── long_put.py           Long Put
-│   ├── bull_call_spread.py   Bull Call Spread
-│   ├── bear_put_spread.py    Bear Put Spread
-│   └── iron_condor.py        Iron Condor
-├── risk/                   Deterministic Risk Engine
-│   └── engine.py             8 risk gates
-├── options/                Options Analytics
-│   ├── chain.py              Chain parsing
-│   ├── contracts.py          Contract selection
-│   ├── greeks.py             Black-Scholes Greeks
-│   └── liquidity.py          Liquidity checks
-├── analytics/              Performance and Audit
-│   ├── performance.py        P&L, win rate, Sharpe
-│   ├── events.py             JSONL audit log
-│   ├── counterfactual.py     Counterfactual portfolio tracker
-│   ├── kill_precision.py     Kill precision analytics
-│   ├── graveyard.py          Strategy graveyard lifecycle
-│   ├── disagreement.py       Agent disagreement scorer
-│   ├── receipts.py           Decision receipt manager
-│   └── reports.py            Cycle report builder
-├── portfolio/              Portfolio Management
-│   └── manager.py            Portfolio state and evaluation
-├── execution/              Order Execution
-│   └── executor.py           Alpaca order submission + close
-├── monitoring/             Position Monitoring
-│   └── position_monitor.py   Take-profit / stop-loss / trailing stop
-├── database/               Persistence
-│   ├── repository.py         Trade journal (JSON)
-│   └── rejected.py           "Why Not Trade?" log
-├── config/                 Configuration
-│   └── settings.py           Environment settings
-app/                        Next.js Frontend
-backend/                    FastAPI Backend
-tests/                      Test Suite (113 tests)
-main.py                     CLI Entry Point
-```
-
----
-
-## Testing
-
-```bash
+# Run complete test suite (113 passing tests)
 pytest tests/ -v
 ```
 
-113 tests covering config, Alpaca client, models, options, strategies, kill agent, risk engine, portfolio, position sizing, monitoring, journal, postmortem, LLM layer, analytics, and strategy graveyard.
+```text
+tests/test_alpaca_client.py ........               [ 7%]
+tests/test_models.py ..............                [19%]
+tests/test_options.py .............                [30%]
+tests/test_strategies.py .................         [46%]
+tests/test_kill_agent.py ........                  [53%]
+tests/test_risk_engine.py .........                [61%]
+tests/test_portfolio.py ......                     [66%]
+tests/test_position_sizing.py ....                 [70%]
+tests/test_monitoring.py .......                   [76%]
+tests/test_analytics.py .........                  [84%]
+tests/test_agensi_features.py ....                 [88%]
+tests/test_comprehensive.py .............          [100%]
+
+======================== 113 passed in 1.17s =========================
+```
+
+Frontend production build verification:
+```bash
+npm run build
+```
 
 ---
 
-## Environment Variables
+## Security & Paper-Only Guarantee
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `ALPACA_API_KEY` | Yes | — | Alpaca API key ID |
-| `ALPACA_SECRET_KEY` | Yes | — | Alpaca secret key |
-| `ALPACA_PAPER` | Yes | `true` | Must be true (live rejected) |
-| `KILLJOY_LLM_API_KEY` | No | — | Groq or OpenAI-compatible API key |
-| `KILLJOY_LLM_BASE_URL` | No | `https://api.openai.com/v1` | LLM endpoint URL |
-| `KILLJOY_LLM_MODEL` | No | `gpt-4o-mini` | LLM model name |
-| `KILLJOY_LLM_TEMPERATURE` | No | `0.3` | LLM temperature |
-| `KILLJOY_LLM_MAX_TOKENS` | No | `512` | Max tokens per request |
-| `NEXT_PUBLIC_API_URL` | No | — | Backend URL for Vercel frontend |
+KILLJOY is engineered from the ground up for strict capital safety:
+
+1. **Enforced Paper Trading**: The codebase unconditionally validates `ALPACA_PAPER=true`. If live trading keys or endpoints are configured, initialization halts immediately with an exception.
+2. **Loopback Protection**: Mutating endpoints (`/api/live-cycle`, `/api/autonomous/toggle`) strictly restrict execution to loopback interfaces (`127.0.0.1`, `::1`) unless an explicit `KILLJOY_CONTROL_SECRET` is set.
+3. **No Key Leakage**: API secrets are never printed to terminal logs, serialised into receipts, or committed to Git.
+4. **Deterministic Veto**: No model prompt can instruct the system to ignore risk limits, daily loss boundaries, or position sizing caps.
 
 ---
 
-## Safety
+## License & Disclaimer
 
-- Paper trading only (`ALPACA_PAPER=true` enforced at config level)
-- LLM never directly controls order execution
-- Deterministic risk engine has final veto authority
-- Kill Agent adversarially tests every trade
-- All orders originate from validated `TradeProposal` (Pydantic)
-- Schema validation on all LLM outputs
-- No live credentials in configuration
-- Credentials never logged or persisted
-- LIVE buttons disabled outside market hours (Mon-Fri 9:30 AM – 4:00 PM ET)
-- Autonomous mode requires explicit enable + cron job setup
-- Concurrency lock prevents overlapping executions
-- Daily loss circuit breaker at -$800
+KILLJOY is distributed for educational, research, and paper-trading evaluation purposes only.
 
----
-
-## License
-
-Internal hackathon project.
+> **Disclaimer**: Options trading involves substantial risk of loss and is not suitable for all investors. Past performance of simulated or paper trades does not guarantee future results. KILLJOY is strictly a software automation framework; users are solely responsible for their own trading decisions and risk management.

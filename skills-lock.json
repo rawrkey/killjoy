@@ -25,6 +25,12 @@
       "skillPath": ".github/skills/code-review/SKILL.md",
       "computedHash": "55bdb481dea4d71d52e3570dc1a00678b7481ab832f14825372754eb598ae447"
     },
+    "crafting-effective-readmes": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/crafting-effective-readmes/SKILL.md",
+      "computedHash": "e4c5a3ec30f44906b1333d2f6d27011b50631bf024295cb068f422382fdb5b5a"
+    },
     "dependabot-triager": {
       "source": "cli/cli",
       "sourceType": "github",

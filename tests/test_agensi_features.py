@@ -120,3 +120,4 @@ def test_cash_secured_put_rejected_in_strong_downtrend():
 
     proposal = strategy.build_proposal(thesis, [], spot)
     assert proposal is None
+
