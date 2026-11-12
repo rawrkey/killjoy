@@ -3,7 +3,7 @@ name: killjoy
 description: >-
   Autonomous options trading agent with adversarial AI debate. The AI proposes,
   the AI attacks, the risk engine decides, and Alpaca executes on paper.
-  Use when the user wants to scan market regimes, evaluate options spreads (calls, puts, vertical spreads, iron condors),
+  Use when the user wants to scan market regimes, evaluate options spreads (calls, puts, vertical spreads, iron condors, cash-secured puts),
   run adversarial kill-tests on trade proposals, simulate counterfactual outcomes, or execute paper options trades.
 parameters:
   type: object
@@ -15,17 +15,14 @@ parameters:
         - analyze
         - propose
         - kill-test
-        - debate
-        - risk-check
+        - capital-saved
         - paper-cycle
         - live-cycle
-        - counterfactual
-        - receipts
-        - graveyard
+        - positions
       description: The trading action or pipeline stage to execute.
     symbol:
       type: string
-      description: Underlying stock ticker (e.g. SPY, QQQ, AAPL, NVDA, TSLA).
+      description: Underlying stock ticker (e.g. SPY, QQQ, AAPL, NVDA, TSLA, AMD, MSFT).
     strategy:
       type: string
       enum:
@@ -34,6 +31,7 @@ parameters:
         - bull_call_spread
         - bear_put_spread
         - iron_condor
+        - cash_secured_put
       description: Options strategy to evaluate.
 ---
 
@@ -45,14 +43,24 @@ KILLJOY stops autonomous trading agents from greedily blowing up accounts. Inste
 
 ---
 
+## Zero-Config Sandbox Mode
+
+KILLJOY works out of the box with **zero required API keys**. When running without Alpaca or Groq credentials:
+- **Market Data**: Runs in Sandbox Mode with realistic pricing feeds for `SPY`, `QQQ`, `AAPL`, `NVDA`, `TSLA`, `MSFT`, `AMZN`, `GOOGL`, `META`, `AMD` (or dynamic feeds for any custom ticker).
+- **Options Chains**: Synthesizes fully compliant OCC options chains with strikes, expirations, and Greeks ($\Delta, \Gamma, \Theta, \text{Vega}$).
+- **Adversarial Engine**: Runs complete 9-stage decision cycles and records counterfactuals.
+- When live credentials are added to `.env`, KILLJOY automatically switches to live Alpaca Paper trading feeds!
+
+---
+
 ## When to Use This Skill
 
 Activate KILLJOY when:
-- The user asks to analyze options chains, Greeks, or market volatility for tickers like `SPY`, `QQQ`, `AAPL`, `NVDA`, `TSLA`.
-- The user wants a structured, defined-risk options trade proposal (Long Call, Long Put, Bull Call Spread, Bear Put Spread, Iron Condor).
-- The user wants to stress-test or poke holes in a trading thesis using adversarial AI debate (`kill-test` or `debate`).
-- The user wants to run an autonomous paper trading decision cycle.
-- The user wants to verify risk limits, counterfactual performance of rejected trades, or decision receipts.
+- The user asks to analyze options chains, Greeks, or market volatility for tickers like `SPY`, `QQQ`, `AAPL`, `NVDA`, `TSLA`, `AMD`.
+- The user wants a structured, defined-risk options trade proposal (Long Call, Long Put, Bull Call Spread, Bear Put Spread, Iron Condor, Cash-Secured Put).
+- The user wants to stress-test or poke holes in a trading thesis using adversarial AI debate (`kill-test`).
+- The user wants to run an autonomous paper trading decision cycle (`paper-cycle`).
+- The user wants to verify risk limits, counterfactual performance of rejected trades, or capital preservation receipts (`capital-saved`).
 
 ---
 
@@ -75,57 +83,61 @@ Activate KILLJOY when:
 
 ## Available Commands & Actions
 
-### 1. Account & Connection Status
-Verify paper connectivity, account equity, buying power, and active risk limits.
+### 1. Market Regime Analysis (On-Demand Single Symbol or Universe)
+Analyze momentum, volume ratio, 20-bar volatility, and market regime for any target symbol.
 ```bash
-python main.py --check
-python main.py --status
-```
-
-### 2. Market Regime Analysis
-Analyze momentum, volume ratio, 20-bar volatility, and market regime for top universe symbols.
-```bash
+python main.py --analyze --symbol NVDA
 python main.py --analyze
 ```
 **Regimes Classified**:
 - `strong_uptrend` / `uptrend` → Bullish calls or Bull Call Spreads
 - `strong_downtrend` / `downtrend` → Bearish puts or Bear Put Spreads
-- `sideways` / `neutral` → Iron Condors
-- `high_volatility` → Volatility alerts (Iron Condors locked out)
+- `sideways` / `neutral` → Iron Condors & Cash-Secured Puts
+- `high_volatility` → Volatility alert (Iron Condors locked out)
 
-### 3. Dry-Run Decision Cycle
-Executes the full 9-stage pipeline without submitting orders. Evaluates candidates, tests them against the Kill Agent, runs deterministic risk gates, and records counterfactuals.
+### 2. Generate Options Proposals
+Generate ranked, regime-filtered options candidates with exact strikes, expirations, and max profit/loss:
 ```bash
+python main.py --propose --symbol AAPL
+python main.py --propose --symbol NVDA --strategy cash_secured_put
+```
+
+### 3. Adversarial Kill Test
+Attack any trade proposal with 9 adversarial checks and LLM debate to compute an objective **Kill Score (0.00 – 1.00)**:
+```bash
+python main.py --kill-test --symbol TSLA
+python main.py --kill-test --symbol SPY --strategy iron_condor
+```
+
+### 4. Capital Preservation & Avoided Losses Report
+Review exactly how much capital the Kill Agent saved your portfolio by vetoing bad trades:
+```bash
+python main.py --capital-saved
+```
+
+### 5. Dry-Run Decision Cycle
+Executes the full 9-stage pipeline without submitting orders. Evaluates candidates, tests them against the Kill Agent, runs deterministic risk gates, and records counterfactuals:
+```bash
+python main.py --paper-cycle --symbol NVDA
 python main.py --paper-cycle
 ```
 
-### 4. Autonomous Loop
-Runs continuous scans every 30 minutes during market hours (Mon-Fri 9:30 AM – 4:00 PM ET). Automatically closes positions on **Take-Profit (+50%)**, **Stop-Loss (-20%)**, **Trailing Stop (-10% from peak)**, or **Time Exit (45 days)**.
+### 6. Autonomous Loop
+Runs continuous scans every 30 minutes during market hours (Mon-Fri 9:30 AM – 4:00 PM ET). Automatically closes positions on **Take-Profit (+50%)**, **Stop-Loss (-20%)**, **Trailing Stop (-10% from peak)**, or **Time Exit (45 days)**:
 ```bash
 python main.py --autonomous
 ```
 
 ---
 
-## The Kill Agent: How Adversarial Debate Works
+## Supported Options Strategies
 
-The Kill Agent actively attempts to find reasons to reject every trade:
-1. **Confidence Floor**: Rejects if proposal confidence $< 0.20$.
-2. **Reward-to-Risk Ratio**: Rejects if $R/R < 1.50$.
-3. **Loss Ceiling**: Rejects if max loss $> \$1,000$.
-4. **Thesis Contradiction**: Identifies bullish setups in downtrend regimes or vice-versa.
-5. **Regime Misalignment**: Forbids selling Iron Condors into high volatility.
-6. **Risk Factor Stacking**: Flags proposals with more than 2 distinct event risks.
-7. **Expiration Timing**: Rejects expiration $< 7$ days (gamma risk) or $> 60$ days (stagnation).
-8. **Leg Complexity**: Penalizes structures with excessive legs.
-9. **Single-Ticker Concentration**: Enforces portfolio diversification.
-
-**Kill Score Scale**:
-- `0.00 - 0.20`: **KILL** — Critical flaws, immediate reject.
-- `0.20 - 0.40`: **WEAK** — Significant hazards, rejected by threshold.
-- `0.40 - 0.60`: **MARGINAL** — High caution, requires debate defense.
-- `0.60 - 0.80`: **DECENT** — Acceptable risk.
-- `0.80 - 1.00`: **STRONG** — Clean thesis, passes to risk engine.
+1. **Long Call** (Strong Uptrend) — Bullish directional play.
+2. **Long Put** (Strong Downtrend) — Bearish directional play.
+3. **Bull Call Spread** (Mild Uptrend) — Defined-risk debit spread.
+4. **Bear Put Spread** (Mild Downtrend) — Defined-risk debit spread.
+5. **Iron Condor** (Sideways) — Defined-risk neutral credit spread.
+6. **Cash-Secured Put (CSP / Wheel Strategy)** (Neutral to Mild Uptrend) — High probability theta income with cash collateral backing.
 
 ---
 
@@ -143,13 +155,3 @@ Even if the LLM approves a trade, the deterministic risk engine has **absolute v
 | **Buying Power Floor** | $\ge \$500 + \text{loss}$ | Protects account solvency |
 | **Max Concurrent Positions**| $\le 10$ | Prevents execution spam |
 | **Max IV Rank** | $\le 70\%$ | Rejects buying premium in high IV |
-
----
-
-## Agensi.io & Marketplace Integration
-
-When running in an environment powered by Agensi.io:
-1. Market quotes and options chains are automatically provided via Agensi's 4,500+ tool API keys.
-2. Users do not need their own Alpaca or Market Data accounts to run simulations or receive trade theses.
-3. Live paper execution connects directly to Alpaca paper trading accounts via `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`.
-

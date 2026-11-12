@@ -87,6 +87,7 @@ class StrategyType(str, Enum):
     BULL_CALL_SPREAD = "bull_call_spread"
     BEAR_PUT_SPREAD = "bear_put_spread"
     IRON_CONDOR = "iron_condor"
+    CASH_SECURED_PUT = "cash_secured_put"
 
 
 class MarketRegime(str, Enum):

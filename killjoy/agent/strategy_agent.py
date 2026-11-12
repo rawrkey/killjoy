@@ -17,6 +17,7 @@ from decimal import Decimal
 from killjoy.agent.models import MarketThesis, StrategyType, TradeProposal
 from killjoy.strategies.bull_call_spread import BullCallSpreadStrategy
 from killjoy.strategies.bear_put_spread import BearPutSpreadStrategy
+from killjoy.strategies.cash_secured_put import CashSecuredPutStrategy
 from killjoy.strategies.iron_condor import IronCondorStrategy
 from killjoy.strategies.long_call import LongCallStrategy
 from killjoy.strategies.long_put import LongPutStrategy
@@ -29,6 +30,7 @@ STRATEGIES = [
     BullCallSpreadStrategy(),
     BearPutSpreadStrategy(),
     IronCondorStrategy(),
+    CashSecuredPutStrategy(),
 ]
 
 
