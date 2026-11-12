@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Annotated
@@ -37,10 +37,23 @@ _autonomous_enabled = False
 # ── Auth for control endpoints ────────────────────────────────────────────────
 CONTROL_SECRET = os.environ.get("KILLJOY_CONTROL_SECRET", "")
 
-async def verify_control_secret(x_control_secret: str = Header(default="")):
-    """Require KILLJOY_CONTROL_SECRET header for control endpoints."""
-    if CONTROL_SECRET and x_control_secret != CONTROL_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid control secret")
+async def verify_control_secret(request: Request, x_control_secret: str = Header(default="")):
+    """Require KILLJOY_CONTROL_SECRET header for control endpoints.
+    
+    If KILLJOY_CONTROL_SECRET is set, enforces exact header match.
+    If KILLJOY_CONTROL_SECRET is not set, restricts remote execution to local loopback
+    to prevent unauthorized remote access to live trading and autonomous toggling.
+    """
+    if CONTROL_SECRET:
+        if x_control_secret != CONTROL_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid control secret")
+    else:
+        client_host = request.client.host if request.client else ""
+        if client_host and client_host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+            raise HTTPException(
+                status_code=403,
+                detail="Remote control forbidden: Configure KILLJOY_CONTROL_SECRET to allow remote API calls.",
+            )
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 

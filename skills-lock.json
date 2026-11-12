@@ -1,0 +1,107 @@
+{
+  "version": 2,
+  "skills": {
+    "agentic-workflows": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/agentic-workflows/SKILL.md",
+      "computedHash": "b63fcadf43ac780ede259ca6ed268bcdf3c43cb2f73f8cd77a45cd2baa1ab512"
+    },
+    "captions-overlay": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/captions-overlay/SKILL.md",
+      "computedHash": "0b838c171051b9945f39318df4be240a50eed4b9ef4175304ee47bf51a827fd3"
+    },
+    "cli-exercise": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/cli-exercise/SKILL.md",
+      "computedHash": "07a9b0ac626b595805d74d83a3e9c0963b9ae7d5ef8373b9d0b24a1da618b707"
+    },
+    "code-review": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/code-review/SKILL.md",
+      "computedHash": "55bdb481dea4d71d52e3570dc1a00678b7481ab832f14825372754eb598ae447"
+    },
+    "dependabot-triager": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/dependabot-triager/SKILL.md",
+      "computedHash": "a5d0c66ab3d796ad33b1555e6520f20f84c982055c3a39790f229e176722d412"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "7bc223e2aafbdbf6e50ea243ba6ef67fe432bb069ab439fea0390795dac0bf7f"
+    },
+    "gh": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": "skills/gh/SKILL.md",
+      "computedHash": "30ce82e81a0cc75feaa5276b9fb11873543682da0182ed44c21eb4d2f39993f3"
+    },
+    "gh-skill": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": "skills/gh-skill/SKILL.md",
+      "computedHash": "35247903dbefaebac32274aad9a976204f257b3746f520ab852c890311dc7e75"
+    },
+    "ghmock": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/ghmock/SKILL.md",
+      "computedHash": "5cfae219427456695cf3ae4bed9dbb38c37a505a847e703a38d92af8ee7258b3"
+    },
+    "github-ops": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/github-ops/SKILL.md",
+      "computedHash": "a56848f0b4ef06634b132dd807c0b4f0cce3af495743e8540365e39b9b88597d"
+    },
+    "llm-trading-agent-security": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/llm-trading-agent-security/SKILL.md",
+      "computedHash": "e459e93cf59a47288335e434221dd793cc8d85517829d6ccddc5656beb2dc281"
+    },
+    "security-review": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/security-review/SKILL.md",
+      "computedHash": "2f509e757d51e10acb45a7a707767f1d1a26f7b8f63477b83080aa7217b04283"
+    },
+    "stix": {
+      "source": "bassimeledath/stix",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "d7ce455f6778ccb0761cbe61a502ed7728e7a157a94cc46263b3b4bbad8ee8c0"
+    },
+    "style-sampling": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/style-sampling/SKILL.md",
+      "computedHash": "cb49372a8bfd06f5478802f56febf2d25371fd3401e83957139ecf12e80e490b"
+    },
+    "tech-debt-burndown": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/tech-debt-burndown/SKILL.md",
+      "computedHash": "ca1ec89452dec5a5ac29ca1cc3f5521326a52cab28c4de25dbee132a780706ce"
+    },
+    "vhs-demo": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/vhs-demo/SKILL.md",
+      "computedHash": "b36426c7f9c5701977ba31ac4b3e53989cb7ae5266f7a9df01f9df3d3c74ce20"
+    },
+    "writing-acceptance-tests": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "skillPath": ".github/skills/writing-acceptance-tests/SKILL.md",
+      "computedHash": "8a34b02025792b959b70799113687aa20c32ee2a64fe8b4985a8b92dbb6ca4db"
+    }
+  }
+}
